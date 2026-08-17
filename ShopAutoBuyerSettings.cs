@@ -18,7 +18,7 @@ public class ShopAutoBuyerSettings : ISettings
     };
 
     public HotkeyNode TriggerHotkey { get; set; } = new HotkeyNode(Keys.F6);
-    public ToggleNode AutoBuyOnOpen { get; set; } = new ToggleNode(false);
+    public ToggleNode AutoBuyOnOpen { get; set; } = new ToggleNode(true);
     public ToggleNode ScanAllTabs { get; set; } = new ToggleNode(true);
     public ToggleNode HighlightOnlyMode { get; set; } = new ToggleNode(false);
     public ToggleNode ShowStatusBox { get; set; } = new ToggleNode(true);
