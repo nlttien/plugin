@@ -1,5 +1,5 @@
 using System;
-using System.Threading.Tasks;
+using System.Threading;
 using System.Windows.Forms;
 using ExileCore;
 using SharpDX;
@@ -18,9 +18,8 @@ public static class MouseHelper
 
     public static void MoveMouseWithJitter(RectangleF rect)
     {
-        // Calculate safe clickable area with small padding inside the item box
-        var paddingX = Math.Max(2f, rect.Width * 0.15f);
-        var paddingY = Math.Max(2f, rect.Height * 0.15f);
+        var paddingX = Math.Max(2f, rect.Width * 0.2f);
+        var paddingY = Math.Max(2f, rect.Height * 0.2f);
 
         var minX = rect.Left + paddingX;
         var maxX = rect.Right - paddingX;
@@ -35,14 +34,20 @@ public static class MouseHelper
 
     public static void CtrlLeftClick()
     {
-        Input.KeyDown(Keys.ControlKey);
-        Input.Click(MouseButtons.Left);
-        Input.KeyUp(Keys.ControlKey);
+        Input.KeyDown(Keys.LControlKey);
+        Thread.Sleep(35);
+        Input.LeftDown();
+        Thread.Sleep(35);
+        Input.LeftUp();
+        Thread.Sleep(35);
+        Input.KeyUp(Keys.LControlKey);
     }
 
     public static void LeftClick()
     {
-        Input.Click(MouseButtons.Left);
+        Input.LeftDown();
+        Thread.Sleep(35);
+        Input.LeftUp();
     }
 
     public static int GetRandomDelay(int minMs, int maxMs)

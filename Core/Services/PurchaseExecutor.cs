@@ -46,6 +46,9 @@ public class PurchaseExecutor
             var versionStr = _settings.GameVersion?.Value ?? "AutoDetect";
             var adapter = _adapterFactory.GetAdapter(_gc, versionStr);
 
+            // Chờ ngắn để UI và danh sách vật phẩm nạp đầy đủ vào bộ nhớ
+            yield return new WaitTime(250);
+
             if (!adapter.IsShopOpen(_gc))
             {
                 LogHelper.Warn("Cửa sổ Shop chưa được mở!");
@@ -67,14 +70,15 @@ public class PurchaseExecutor
                 if (_settings.ScanAllTabs.Value && tabCount > 1)
                 {
                     adapter.SwitchToTab(_gc, tabIndex);
-                    yield return new WaitTime(MouseHelper.GetRandomDelay(250, 400));
+                    yield return new WaitTime(MouseHelper.GetRandomDelay(300, 450));
                 }
 
                 var currentItems = adapter.GetAvailableItems(_gc);
                 if (currentItems == null || currentItems.Count == 0)
                 {
-                    yield return new WaitTime(100);
-                    continue;
+                    yield return new WaitTime(150);
+                    currentItems = adapter.GetAvailableItems(_gc);
+                    if (currentItems == null || currentItems.Count == 0) continue;
                 }
 
                 // Get matching items
@@ -113,10 +117,11 @@ public class PurchaseExecutor
 
                     // 3. Thực hiện thao tác Ctrl + Left Click để mua
                     MouseHelper.CtrlLeftClick();
-                    yield return new WaitTime(120);
+                    yield return new WaitTime(150);
 
-                    // 4. Tự động kiểm tra & xác nhận hộp thoại cảnh báo giá (Note: price differs -> OK)
+                    // 4. Tự động kiểm tra & xác nhận hộp thoại cảnh báo giá nếu xuất hiện (price differs -> OK)
                     HandlePriceDifferenceModal(_gc);
+                    yield return new WaitTime(100);
 
                     totalPurchasedCount++;
                     LogHelper.Info($"[ĐÃ MUA] {item.DisplayName} (Giá: {item.CostString})");
@@ -131,7 +136,7 @@ public class PurchaseExecutor
         finally
         {
             IsRunning = false;
-            // Write bridge status for web trade automation
+            // Chỉ ghi tín hiệu hoàn thành khi đã thực sự mua đồ hoặc quét xong
             try
             {
                 var bridgeFile = @"D:\codecuatien\trade_bridge.json";
@@ -163,9 +168,8 @@ public class PurchaseExecutor
                 }
             }
 
-            // Fallback pressing Enter or Space
+            // Fallback bấm Enter
             Input.KeyPress(Keys.Enter);
-            Input.KeyPress(Keys.Space);
         }
         catch (Exception ex)
         {
