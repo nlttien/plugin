@@ -26,7 +26,7 @@ if exist "%PYTHON_TOOL_DIR%" (
     if exist "launch_chrome.bat" (
         start "" "launch_chrome.bat"
     )
-    python open_profile.py
+    py open_profile.py
 ) else (
     echo [Loi] Khong tim thay thu muc autobuypoe tai: %PYTHON_TOOL_DIR%
     pause
