@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using ExileCore;
 using ExileCore.Shared;
@@ -22,7 +23,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     private List<ShopItemInfo> _cachedMatchingItems = new List<ShopItemInfo>();
     private List<ShopItemInfo> _cachedAllItems = new List<ShopItemInfo>();
     private DateTime _lastScanTime = DateTime.MinValue;
-    private DateTime _lastAutoBuyTriggerTime = DateTime.MinValue;
+    private DateTime _lastNoItemsSignalTime = DateTime.MinValue;
     private bool _isShopOpenCached;
 
     public override bool Initialise()
@@ -62,43 +63,13 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             var isShopOpen = adapter.IsShopOpen(GameController);
             _isShopOpenCached = isShopOpen;
 
-            // 1. Kiem tra phim tat kich hoat thu cong (Hotkey)
-            if (Settings?.TriggerHotkey != null && Settings.TriggerHotkey.PressedOnce())
-            {
-                if (isShopOpen)
-                {
-                    if (_purchaseExecutor != null && !_purchaseExecutor.IsRunning)
-                    {
-                        StartPurchaseCoroutine();
-                    }
-                    else
-                    {
-                        LogHelper.Warn("Tien trinh mua dang chay!");
-                    }
-                }
-                else
-                {
-                    LogHelper.Warn("Vui long mo cua so Shop NPC truoc khi bam phim tat!");
-                }
-            }
-
-            // 2. Tu dong kich hoat mua ngay khi mo Shop (Khong can bam F6)
+            // TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam F6
             if (isShopOpen && Settings?.HighlightOnlyMode?.Value != true)
             {
-                var isCoroutineRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
-                if (!isCoroutineRunning)
+                var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
+                if (!isRunning)
                 {
-                    // Khi vua mo Shop hoac khi co item khop dieu kien
-                    if (!_wasShopOpenLastFrame && (DateTime.Now - _lastAutoBuyTriggerTime).TotalSeconds > 1.0)
-                    {
-                        _lastAutoBuyTriggerTime = DateTime.Now;
-                        StartPurchaseCoroutine();
-                    }
-                    else if (_cachedMatchingItems.Count > 0 && (DateTime.Now - _lastAutoBuyTriggerTime).TotalSeconds > 1.5)
-                    {
-                        _lastAutoBuyTriggerTime = DateTime.Now;
-                        StartPurchaseCoroutine();
-                    }
+                    StartPurchaseCoroutine();
                 }
             }
 
@@ -130,7 +101,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
             if (isShopOpen && adapter != null)
             {
-                // Quet lai danh sach moi 100ms de toi uu hieu nang Render
+                // Quet lai danh sach moi 100ms de cap nhat Render
                 if ((DateTime.Now - _lastScanTime).TotalMilliseconds > 100)
                 {
                     _lastScanTime = DateTime.Now;
@@ -158,9 +129,19 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                         _cachedAllItems.Clear();
                         _cachedMatchingItems.Clear();
                     }
+
+                    // Neu mo Shop ma khong con vat pham nao hop le, tu dong bao ve Web Trade sau 1.5s
+                    if (_cachedMatchingItems.Count == 0 && (_purchaseExecutor == null || !_purchaseExecutor.IsRunning))
+                    {
+                        if ((DateTime.Now - _lastNoItemsSignalTime).TotalSeconds > 2.0)
+                        {
+                            _lastNoItemsSignalTime = DateTime.Now;
+                            NotifyWebTradeCompleted(0);
+                        }
+                    }
                 }
 
-                // 1. Ve Highlight len cac item dat dieu kien trong shop (Tranh de chu)
+                // 1. Ve Highlight len cac item dat dieu kien trong shop
                 if (_cachedMatchingItems.Count > 0)
                 {
                     var color = Settings?.HighlightColor?.Value ?? Color.LimeGreen;
@@ -173,10 +154,8 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                         var rect = item.ScreenRect;
                         if (rect.Width <= 0 || rect.Height <= 0) continue;
 
-                        // Ve khung vien highlight
                         Graphics.DrawFrame(rect, color, border);
 
-                        // Ve chu theo tuy chon LabelMode
                         if (labelMode == "Compact (Seed Only)")
                         {
                             var compactLabel = item.TimelessSeed > 0 ? $"{item.TimelessSeed}" : "BUY";
@@ -189,7 +168,6 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                             var textPos = new Vector2(rect.Left + 2, rect.Top - 14);
                             Graphics.DrawText(labelText, textPos, color);
                         }
-                        // "Border Only": Khong ve chu len o, chi ve vien
                     }
                 }
             }
@@ -213,19 +191,17 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         var boxW = 340f;
         var boxH = isShopOpen ? (110f + Math.Min(_cachedMatchingItems.Count, 3) * 42f) : 70f;
 
-        // Background box
         Graphics.DrawBox(new RectangleF(boxX, boxY, boxW, boxH), new Color(0, 0, 0, 210));
         Graphics.DrawFrame(new RectangleF(boxX, boxY, boxW, boxH), Color.Goldenrod, 1);
 
-        // Header Title
-        var title = "=== POE AUTO BUYER (ACTIVE) ===";
+        var title = "=== POE AUTO BUYER (TIMELESS JEWELS) ===";
         Graphics.DrawText(title, new Vector2(boxX + 12, boxY + 8), Color.Gold);
 
         var currentY = boxY + 28;
 
         if (isShopOpen)
         {
-            var detectedText = $"Cua hang: DANG MO | Phat hien: {_cachedMatchingItems.Count} item hop le";
+            var detectedText = $"Cua hang: DANG MO | Tim thay: {_cachedMatchingItems.Count} Timeless Jewel";
             Graphics.DrawText(detectedText, new Vector2(boxX + 12, currentY), Color.LimeGreen);
             currentY += 20;
 
@@ -247,28 +223,23 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
 
                 var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
-                var statusMsg = isRunning ? "Trang thai: >> DANG TU DONG MUA <<..." : "Trang thai: SAN SANG TU DONG MUA (Auto)";
-                Graphics.DrawText(statusMsg, new Vector2(boxX + 12, currentY + 2), isRunning ? Color.LimeGreen : Color.Yellow);
+                var statusMsg = isRunning ? "Trang thai: >> DANG TU DONG MUA <<..." : "Trang thai: >> TU DONG MUA HOAN TOAN (Hands-Free) <<";
+                Graphics.DrawText(statusMsg, new Vector2(boxX + 12, currentY + 2), Color.LimeGreen);
             }
             else
             {
-                Graphics.DrawText("Chua co do nao khop voi bo loc trong Tab nay.", new Vector2(boxX + 12, currentY), Color.Gray);
+                Graphics.DrawText("Khong con vat pham nao trong shop nay -> Chuyen tiep!", new Vector2(boxX + 12, currentY), Color.Cyan);
             }
         }
         else
         {
-            Graphics.DrawText("Hay den NPC (Faustus, Helena, Vendor) va mo Shop.", new Vector2(boxX + 12, currentY), Color.LightGray);
+            Graphics.DrawText("Dang cho mo Shop (Faustus, Merchant, Helena)...", new Vector2(boxX + 12, currentY), Color.LightGray);
         }
     }
 
     private void StartPurchaseCoroutine()
     {
-        if (Settings?.HighlightOnlyMode?.Value == true)
-        {
-            LogHelper.Info("Dang o che do 'Highlight Only' (Chi xem truoc, khong mua).");
-            return;
-        }
-
+        if (Settings?.HighlightOnlyMode?.Value == true) return;
         if (_currentCoroutine != null && !_currentCoroutine.IsDone) return;
         if (_purchaseExecutor != null && _purchaseExecutor.IsRunning) return;
 
@@ -286,5 +257,16 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             );
             Core.ParallelRunner.Run(_currentCoroutine);
         }
+    }
+
+    private static void NotifyWebTradeCompleted(int boughtCount)
+    {
+        try
+        {
+            var bridgeFile = @"D:\codecuatien\trade_bridge.json";
+            var json = $"{{\"status\":\"COMPLETED\",\"items_bought\":{boughtCount},\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
+            File.WriteAllText(bridgeFile, json);
+        }
+        catch { }
     }
 }
