@@ -56,13 +56,7 @@ public class Poe1ShopAdapter : IShopAdapter
 
             if (tabContainer != null && tabContainer.IsValid)
             {
-                items = tabContainer.VisibleInventoryItems;
-            }
-
-            if (items == null || items.Count == 0)
-            {
-                // Fallback directly to purchaseWindow children if TabContainer isn't active
-                items = purchaseWindow.VisibleInventoryItems;
+                items = tabContainer.VisibleStash?.VisibleInventoryItems;
             }
 
             if (items == null) return result;
@@ -154,7 +148,7 @@ public class Poe1ShopAdapter : IShopAdapter
             var purchaseWindow = (ingameUi?.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi?.PurchaseWindowHideout);
             if (purchaseWindow == null) return 1;
 
-            var tabCount = purchaseWindow.TabContainer?.TotalStashCount ?? 0;
+            var tabCount = purchaseWindow.TabContainer?.TotalStashes ?? 0;
             return tabCount > 0 ? tabCount : 1;
         }
         catch
