@@ -32,7 +32,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
         }
 
-        LogHelper.Info("Plugin ShopAutoBuyer đã khởi tạo thành công (Hỗ trợ PoE 1 & PoE 2).");
+        LogHelper.Info("Plugin ShopAutoBuyer da khoi tao thanh cong (Ho tro PoE 1 & PoE 2).");
         return true;
     }
 
@@ -60,7 +60,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             var isShopOpen = adapter.IsShopOpen(GameController);
             _isShopOpenCached = isShopOpen;
 
-            // 1. Kiểm tra phím tắt kích hoạt thủ công (Hotkey)
+            // 1. Kiem tra phim tat kich hoat thu cong (Hotkey)
             if (Settings?.TriggerHotkey != null && Settings.TriggerHotkey.PressedOnce())
             {
                 if (isShopOpen)
@@ -71,16 +71,16 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     }
                     else
                     {
-                        LogHelper.Warn("Tiến trình mua đang chạy!");
+                        LogHelper.Warn("Tien trinh mua dang chay!");
                     }
                 }
                 else
                 {
-                    LogHelper.Warn("Vui lòng mở cửa sổ Shop NPC trước khi bấm phím tắt!");
+                    LogHelper.Warn("Vui long mo cua so Shop NPC truoc khi bam phim tat!");
                 }
             }
 
-            // 2. Tự động kích hoạt khi mở Shop (Auto-Buy on Open)
+            // 2. Tu dong kich hoat khi mo Shop (Auto-Buy on Open)
             if (Settings?.AutoBuyOnOpen?.Value == true && isShopOpen && !_wasShopOpenLastFrame)
             {
                 if (Settings.HighlightOnlyMode?.Value != true && _purchaseExecutor != null && !_purchaseExecutor.IsRunning)
@@ -93,7 +93,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         }
         catch (Exception ex)
         {
-            LogHelper.Error("Lỗi trong Tick()", ex);
+            LogHelper.Error("Loi trong Tick()", ex);
         }
 
         return null!;
@@ -117,7 +117,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
             if (isShopOpen && adapter != null)
             {
-                // Quét lại danh sách mỗi 100ms để tối ưu hiệu năng Render
+                // Quet lai danh sach moi 100ms de toi uu hieu nang Render
                 if ((DateTime.Now - _lastScanTime).TotalMilliseconds > 100)
                 {
                     _lastScanTime = DateTime.Now;
@@ -137,7 +137,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     }
                 }
 
-                // 1. Vẽ Highlight lên các item đạt điều kiện trong shop
+                // 1. Ve Highlight len cac item dat dieu kien trong shop
                 if (_cachedMatchingItems.Count > 0)
                 {
                     var color = Settings?.HighlightColor?.Value ?? Color.LimeGreen;
@@ -149,11 +149,11 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                         var rect = item.ScreenRect;
                         if (rect.Width <= 0 || rect.Height <= 0) continue;
 
-                        // Vẽ khung viền highlight
+                        // Ve khung vien highlight
                         Graphics.DrawFrame(rect, color, border);
 
-                        // Vẽ nhãn tên vật phẩm
-                        var labelText = $"★ BUY: {item.DisplayName}";
+                        // Ve nhan ten vat pham
+                        var labelText = $"BUY: {item.DisplayName}";
                         var textPos = new Vector2(rect.Left + 2, rect.Top - 16);
                         Graphics.DrawText(labelText, textPos, color);
                     }
@@ -168,7 +168,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
-            // 2. Vẽ bảng thông tin trạng thái & kiểm tra ra màn hình (Status Overlay Box)
+            // 2. Ve bang thong tin trang thai ra ngoai man hinh (Status Overlay Box)
             if (Settings?.ShowStatusBox?.Value == true)
             {
                 DrawStatusOverlayBox(isShopOpen);
@@ -176,7 +176,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         }
         catch (Exception ex)
         {
-            LogHelper.Debug($"Lỗi trong Render(): {ex.Message}");
+            LogHelper.Debug($"Loi trong Render(): {ex.Message}");
         }
     }
 
@@ -184,28 +184,28 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     {
         var boxX = 20f;
         var boxY = 120f;
-        var boxWidth = 380f;
+        var boxWidth = 390f;
 
         var matchingCount = _cachedMatchingItems.Count;
         var totalCount = _cachedAllItems.Count;
 
-        // Tính chiều cao động dựa trên số item tìm thấy
-        var dynamicHeight = 75f + (matchingCount > 0 ? Math.Min(5, matchingCount) * 42f : 20f);
+        // Tinh chieu cao dong dua tren so item tim thay
+        var dynamicHeight = 75f + (matchingCount > 0 ? Math.Min(5, matchingCount) * 44f : 22f);
         var bgRect = new RectangleF(boxX, boxY, boxWidth, dynamicHeight);
 
-        // Nền tối bán trong suốt
-        Graphics.DrawBox(bgRect, new Color(15, 15, 20, 220));
+        // Nen toi ban trong suot
+        Graphics.DrawBox(bgRect, new Color(15, 15, 20, 225));
         Graphics.DrawFrame(bgRect, isShopOpen ? Color.LimeGreen : Color.DarkGray, 2);
 
-        // Tiêu đề
+        // Tieu de
         var titleColor = isShopOpen ? Color.LimeGreen : Color.LightGray;
-        var titleText = isShopOpen ? "● [ShopAutoBuyer] SHOP ĐANG MỞ" : "○ [ShopAutoBuyer] CHỜ MỞ SHOP NPC";
+        var titleText = isShopOpen ? "[ShopAutoBuyer] SHOP DANG MO" : "[ShopAutoBuyer] CHO MO SHOP NPC";
         Graphics.DrawText(titleText, new Vector2(boxX + 12, boxY + 10), titleColor);
 
         var currentY = boxY + 30;
         if (isShopOpen)
         {
-            var summaryText = $"Tổng đồ trong tab: {totalCount} | Khớp bộ lọc: {matchingCount}";
+            var summaryText = $"Tong do trong tab: {totalCount} | Khop bo loc: {matchingCount}";
             Graphics.DrawText(summaryText, new Vector2(boxX + 12, currentY), Color.White);
             currentY += 20;
 
@@ -214,28 +214,28 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 for (var i = 0; i < Math.Min(5, matchingCount); i++)
                 {
                     var item = _cachedMatchingItems[i];
-                    var itemName = $"★ {item.DisplayName} [Ô {item.SlotX + 1},{item.SlotY + 1}]";
+                    var itemName = $"* {item.DisplayName} [O {item.SlotX + 1},{item.SlotY + 1}]";
                     Graphics.DrawText(itemName, new Vector2(boxX + 14, currentY), Color.Gold);
                     currentY += 18;
 
                     var costInfo = !string.IsNullOrWhiteSpace(item.CostString) 
-                        ? $"  Giá: {item.CostString}" 
-                        : $"  Độ hiếm: {item.Rarity} | ilvl: {item.ItemLevel}";
+                        ? $"  Gia: {item.CostString}" 
+                        : $"  Do hiem: {item.Rarity} | ilvl: {item.ItemLevel}";
                     Graphics.DrawText(costInfo, new Vector2(boxX + 14, currentY), Color.LightCyan);
                     currentY += 22;
                 }
 
-                var hotkeyName = Settings?.TriggerHotkey?.Value.ToString() ?? "F5";
-                Graphics.DrawText($"▶ Bấm [{hotkeyName}] để tự động mua ngay!", new Vector2(boxX + 12, currentY + 2), Color.Yellow);
+                var hotkeyName = Settings?.TriggerHotkey?.Value.ToString() ?? "F6";
+                Graphics.DrawText($"Bam [{hotkeyName}] de tu dong mua ngay!", new Vector2(boxX + 12, currentY + 2), Color.Yellow);
             }
             else
             {
-                Graphics.DrawText("Chưa có đồ nào khớp với bộ lọc trong Tab này.", new Vector2(boxX + 12, currentY), Color.Gray);
+                Graphics.DrawText("Chua co do nao khop voi bo loc trong Tab nay.", new Vector2(boxX + 12, currentY), Color.Gray);
             }
         }
         else
         {
-            Graphics.DrawText("Hãy đến NPC (Faustus, Helena, Vendor) và mở Shop.", new Vector2(boxX + 12, currentY), Color.LightGray);
+            Graphics.DrawText("Hay den NPC (Faustus, Helena, Vendor) va mo Shop.", new Vector2(boxX + 12, currentY), Color.LightGray);
         }
     }
 
@@ -243,7 +243,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     {
         if (Settings?.HighlightOnlyMode?.Value == true)
         {
-            LogHelper.Info("Đang ở chế độ 'Highlight Only' (Chỉ xem trước, không mua).");
+            LogHelper.Info("Dang o che do 'Highlight Only' (Chi xem truoc, khong mua).");
             return;
         }
 
