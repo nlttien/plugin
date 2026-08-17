@@ -67,7 +67,7 @@ public static class ItemFilterEngine
             }
             else if (curr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
             {
-                if (settings.BuyDivinePrice?.Value == false) return false;
+                if (settings.BuyDivinePrice?.Value != true) return false;
 
                 var maxDivine = settings.MaxDivinePrice?.Value ?? 0;
                 if (maxDivine <= 0 || item.Cost.Amount > maxDivine)
@@ -87,6 +87,10 @@ public static class ItemFilterEngine
             {
                 return false;
             }
+        }
+        else if (!string.IsNullOrEmpty(item.CostString) && item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase))
+        {
+            if (settings.BuyDivinePrice?.Value != true) return false;
         }
 
         return true;

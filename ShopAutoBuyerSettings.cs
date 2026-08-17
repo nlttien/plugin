@@ -87,10 +87,10 @@ public class ShopAutoBuyerSettings : ISettings
     public RangeNode<int> MaxChaosPrice { get; set; } = new RangeNode<int>(50, 0, 500);
 
     [Menu("Mua Theo Gia Divine Orb")]
-    public ToggleNode BuyDivinePrice { get; set; } = new ToggleNode(true);
+    public ToggleNode BuyDivinePrice { get; set; } = new ToggleNode(false);
 
-    [Menu("Gia Divine Toi Da")]
-    public RangeNode<int> MaxDivinePrice { get; set; } = new RangeNode<int>(5, 0, 50);
+    [Menu("Gia Divine Toi Da (0 = Khong mua bang Divine)")]
+    public RangeNode<int> MaxDivinePrice { get; set; } = new RangeNode<int>(0, 0, 50);
 
     [Menu("Gia Gold Toi Da")]
     public RangeNode<int> MaxGoldPrice { get; set; } = new RangeNode<int>(50000, 0, 500000);
