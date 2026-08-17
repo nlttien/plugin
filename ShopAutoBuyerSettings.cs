@@ -17,7 +17,10 @@ public class ShopAutoBuyerSettings : ISettings
         Value = "AutoDetect"
     };
 
+    // Hotkeys: F7 de dung / tiep tuc
+    public HotkeyNode StopHotkey { get; set; } = new HotkeyNode(Keys.F7);
     public HotkeyNode TriggerHotkey { get; set; } = new HotkeyNode(Keys.F6);
+
     public ToggleNode AutoBuyOnOpen { get; set; } = new ToggleNode(true);
     public ToggleNode ScanAllTabs { get; set; } = new ToggleNode(true);
     public ToggleNode HighlightOnlyMode { get; set; } = new ToggleNode(false);

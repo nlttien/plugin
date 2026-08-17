@@ -20,6 +20,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     private PurchaseExecutor? _purchaseExecutor;
     private Coroutine? _currentCoroutine;
     private bool _wasShopOpenLastFrame;
+    private bool _isPausedByUser = false;
     private List<ShopItemInfo> _cachedMatchingItems = new List<ShopItemInfo>();
     private List<ShopItemInfo> _cachedAllItems = new List<ShopItemInfo>();
     private DateTime _lastScanTime = DateTime.MinValue;
@@ -56,6 +57,23 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
             }
 
+            // 1. Phim tat DUNG / TIEP TUC (F7)
+            if (Settings?.StopHotkey != null && Settings.StopHotkey.PressedOnce())
+            {
+                _isPausedByUser = !_isPausedByUser;
+                if (_isPausedByUser)
+                {
+                    StopAllPurchases();
+                    NotifyWebTradeStatus("STOPPED");
+                    LogHelper.Warn(">>> [ShopAutoBuyer] DA DUNG TOAN BO TIEN TRINH TU DONG! (Bam F7 de tiep tuc) <<<");
+                }
+                else
+                {
+                    NotifyWebTradeStatus("WAITING_IN_GAME");
+                    LogHelper.Info(">>> [ShopAutoBuyer] DA BAT LAI TIEN TRINH TU DONG! <<<");
+                }
+            }
+
             var versionStr = Settings?.GameVersion?.Value ?? "AutoDetect";
             var adapter = _adapterFactory.GetAdapter(GameController, versionStr);
             if (adapter == null) return null!;
@@ -63,8 +81,8 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             var isShopOpen = adapter.IsShopOpen(GameController);
             _isShopOpenCached = isShopOpen;
 
-            // TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam F6
-            if (isShopOpen && Settings?.HighlightOnlyMode?.Value != true)
+            // 2. TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam bat ky nut nao
+            if (isShopOpen && !_isPausedByUser && Settings?.HighlightOnlyMode?.Value != true)
             {
                 var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
                 if (!isRunning)
@@ -130,13 +148,13 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                         _cachedMatchingItems.Clear();
                     }
 
-                    // Neu mo Shop ma khong con vat pham nao hop le, tu dong bao ve Web Trade sau 1.5s
-                    if (_cachedMatchingItems.Count == 0 && (_purchaseExecutor == null || !_purchaseExecutor.IsRunning))
+                    // Neu mo Shop ma khong con vat pham nao hop le, tu dong bao ve Web Trade
+                    if (_cachedMatchingItems.Count == 0 && !_isPausedByUser && (_purchaseExecutor == null || !_purchaseExecutor.IsRunning))
                     {
-                        if ((DateTime.Now - _lastNoItemsSignalTime).TotalSeconds > 2.0)
+                        if ((DateTime.Now - _lastNoItemsSignalTime).TotalSeconds > 1.5)
                         {
                             _lastNoItemsSignalTime = DateTime.Now;
-                            NotifyWebTradeCompleted(0);
+                            NotifyWebTradeStatus("COMPLETED", 0);
                         }
                     }
                 }
@@ -188,20 +206,22 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     {
         var boxX = 20f;
         var boxY = 70f;
-        var boxW = 340f;
-        var boxH = isShopOpen ? (110f + Math.Min(_cachedMatchingItems.Count, 3) * 42f) : 70f;
+        var boxW = 350f;
+        var boxH = isShopOpen ? (115f + Math.Min(_cachedMatchingItems.Count, 3) * 42f) : 75f;
 
-        Graphics.DrawBox(new RectangleF(boxX, boxY, boxW, boxH), new Color(0, 0, 0, 210));
-        Graphics.DrawFrame(new RectangleF(boxX, boxY, boxW, boxH), Color.Goldenrod, 1);
+        Graphics.DrawBox(new RectangleF(boxX, boxY, boxW, boxH), new Color(0, 0, 0, 215));
+        Graphics.DrawFrame(new RectangleF(boxX, boxY, boxW, boxH), _isPausedByUser ? Color.Red : Color.Goldenrod, 1);
 
-        var title = "=== POE AUTO BUYER (TIMELESS JEWELS) ===";
-        Graphics.DrawText(title, new Vector2(boxX + 12, boxY + 8), Color.Gold);
+        var title = _isPausedByUser 
+            ? "=== POE AUTO BUYER [DA TAM DUNG] ===" 
+            : "=== POE AUTO BUYER (ACTIVE AUTO) ===";
+        Graphics.DrawText(title, new Vector2(boxX + 12, boxY + 8), _isPausedByUser ? Color.Red : Color.Gold);
 
         var currentY = boxY + 28;
 
         if (isShopOpen)
         {
-            var detectedText = $"Cua hang: DANG MO | Tim thay: {_cachedMatchingItems.Count} Timeless Jewel";
+            var detectedText = $"Shop: MO | Tim thay: {_cachedMatchingItems.Count} Timeless Jewel";
             Graphics.DrawText(detectedText, new Vector2(boxX + 12, currentY), Color.LimeGreen);
             currentY += 20;
 
@@ -222,24 +242,32 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     currentY += 22;
                 }
 
-                var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
-                var statusMsg = isRunning ? "Trang thai: >> DANG TU DONG MUA <<..." : "Trang thai: >> TU DONG MUA HOAN TOAN (Hands-Free) <<";
-                Graphics.DrawText(statusMsg, new Vector2(boxX + 12, currentY + 2), Color.LimeGreen);
+                if (_isPausedByUser)
+                {
+                    Graphics.DrawText("Trang thai: >> DA DUNG << (Bam [F7] de tiep tuc)", new Vector2(boxX + 12, currentY + 2), Color.Red);
+                }
+                else
+                {
+                    var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
+                    var statusMsg = isRunning ? "Trang thai: >> DANG TU DONG MUA << [F7: Dung]" : "Trang thai: >> TU DONG MUA (Hands-Free) << [F7: Dung]";
+                    Graphics.DrawText(statusMsg, new Vector2(boxX + 12, currentY + 2), Color.LimeGreen);
+                }
             }
             else
             {
-                Graphics.DrawText("Khong con vat pham nao trong shop nay -> Chuyen tiep!", new Vector2(boxX + 12, currentY), Color.Cyan);
+                Graphics.DrawText("Khong con do nao trong shop -> Chuyen tiep!", new Vector2(boxX + 12, currentY), Color.Cyan);
             }
         }
         else
         {
-            Graphics.DrawText("Dang cho mo Shop (Faustus, Merchant, Helena)...", new Vector2(boxX + 12, currentY), Color.LightGray);
+            var waitMsg = _isPausedByUser ? "Dang tam dung. Bam [F7] de tiep tuc." : "Dang cho mo Shop (Faustus, Merchant)... [F7: Dung]";
+            Graphics.DrawText(waitMsg, new Vector2(boxX + 12, currentY), _isPausedByUser ? Color.Red : Color.LightGray);
         }
     }
 
     private void StartPurchaseCoroutine()
     {
-        if (Settings?.HighlightOnlyMode?.Value == true) return;
+        if (Settings?.HighlightOnlyMode?.Value == true || _isPausedByUser) return;
         if (_currentCoroutine != null && !_currentCoroutine.IsDone) return;
         if (_purchaseExecutor != null && _purchaseExecutor.IsRunning) return;
 
@@ -250,6 +278,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
         if (_purchaseExecutor != null)
         {
+            _purchaseExecutor.RequestStop = false;
             _currentCoroutine = new Coroutine(
                 _purchaseExecutor.ExecutePurchaseCoroutine(),
                 this,
@@ -259,12 +288,29 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         }
     }
 
-    private static void NotifyWebTradeCompleted(int boughtCount)
+    private void StopAllPurchases()
+    {
+        try
+        {
+            if (_purchaseExecutor != null)
+            {
+                _purchaseExecutor.RequestStop = true;
+                _purchaseExecutor.IsRunning = false;
+            }
+            if (_currentCoroutine != null)
+            {
+                _currentCoroutine.Done();
+            }
+        }
+        catch { }
+    }
+
+    private static void NotifyWebTradeStatus(string status, int boughtCount = 0)
     {
         try
         {
             var bridgeFile = @"D:\codecuatien\trade_bridge.json";
-            var json = $"{{\"status\":\"COMPLETED\",\"items_bought\":{boughtCount},\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
+            var json = $"{{\"status\":\"{status}\",\"items_bought\":{boughtCount},\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
             File.WriteAllText(bridgeFile, json);
         }
         catch { }
