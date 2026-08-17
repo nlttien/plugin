@@ -168,7 +168,7 @@ public class PurchaseExecutor
             var scaleY = winRect.Height / 1080f;
 
             // Tọa độ CHÍNH XÁC 100% TÂM NÚT [ OK ]: X = 775, Y = 502 (Chuẩn 1920x1080)
-            var exactOkPos = new Vector2(775f * scaleX, 502f * scaleY);
+            var exactOkPos = new Vector2(winRect.Left + 775f * scaleX, winRect.Top + 502f * scaleY);
 
             // Nếu tìm thấy Element hộp thoại, căn theo tâm ngang của hộp thoại
             if (ingameUi != null)
