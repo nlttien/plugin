@@ -121,17 +121,29 @@ public class PurchaseExecutor
 
                     // 3. Thực hiện thao tác Ctrl + Left Click để mua
                     MouseHelper.CtrlLeftClick();
-                    yield return new WaitTime(100);
 
-                    // 4. CHỈ BẤM NÚT [ OK ] ĐÚNG 1 LẦN DUY NHẤT KHI XUẤT HIỆN HỘP THOẠI
-                    if (IsPriceDifferenceModalOpen(_gc))
+                    // Đợi server phản hồi và kiểm tra liên tục xem hộp thoại cảnh báo giá có xuất hiện không (trong 350ms)
+                    var modalDetected = false;
+                    for (var checkStep = 0; checkStep < 7; checkStep++)
+                    {
+                        yield return new WaitTime(50);
+                        if (IsPriceDifferenceModalOpen(_gc))
+                        {
+                            modalDetected = true;
+                            break;
+                        }
+                    }
+
+                    // 4. CHỈ BẤM NÚT [ OK ] ĐÚNG 1 LẦN DUY NHẤT KHI CÓ HỘP THOẠI
+                    if (modalDetected || IsPriceDifferenceModalOpen(_gc))
                     {
                         LogHelper.Info("Phát hiện hộp thoại cảnh báo giá! Bấm [ OK ] 1 lần duy nhất...");
+                        yield return new WaitTime(60);
                         HandlePriceDifferenceModal(_gc, _settings);
                         
-                        // Đợi hộp thoại đóng hoàn toàn (tối đa 300ms)
+                        // Đợi hộp thoại đóng hoàn toàn
                         var waitCount = 0;
-                        while (IsPriceDifferenceModalOpen(_gc) && waitCount < 6)
+                        while (IsPriceDifferenceModalOpen(_gc) && waitCount < 8)
                         {
                             yield return new WaitTime(50);
                             waitCount++;
@@ -213,8 +225,8 @@ public class PurchaseExecutor
 
             var targetPos = new Vector2(realWinRect.Left + customX * scaleX, realWinRect.Top + customY * scaleY);
 
-            // BẤM ĐÚNG 1 LẦN DUY NHẤT VÀO TÂM NÚT [ OK ] (ĐỢI 80ms ĐỂ HOVER RỒI CLICK)
-            MouseHelper.LeftClickAt(targetPos, 80, 40);
+            // BẤM ĐÚNG 1 LẦN DUY NHẤT VÀO TÂM NÚT [ OK ] (ĐỢI 120ms ĐỂ HOVER RỒI CLICK)
+            MouseHelper.LeftClickAt(targetPos, 120, 50);
 
             LogHelper.Info($"Đã bấm xác nhận nút [ OK ] 1 lần tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
         }
