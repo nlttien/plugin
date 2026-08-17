@@ -122,9 +122,9 @@ public class PurchaseExecutor
 
                     // 3. Thực hiện thao tác Ctrl + Left Click để mua
                     MouseHelper.CtrlLeftClick();
-                    yield return new WaitTime(100);
+                    yield return new WaitTime(120);
 
-                    // 4. Tự động kiểm tra & CLICK DỨT KHOÁT nút [ OK ] trên hộp thoại cảnh báo giá
+                    // 4. Tự động kiểm tra & CLICK CHUẨN XÁC nút [ OK ] trên hộp thoại cảnh báo giá
                     HandlePriceDifferenceModal(_gc);
                     yield return new WaitTime(100);
 
@@ -160,91 +160,61 @@ public class PurchaseExecutor
         try
         {
             if (gc == null) return;
-            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
-            if (ingameUi == null) return;
-
-            // 1. Quét tìm Element nút OK chính xác từ cây IngameUi
-            var okButton = FindOkButtonElement(ingameUi);
-            if (okButton != null && okButton.IsValid && okButton.IsVisible)
-            {
-                var rect = okButton.GetClientRect();
-                if (rect.Width > 0 && rect.Height > 0)
-                {
-                    MouseHelper.MoveMouse(new Vector2(rect.Center.X, rect.Center.Y));
-                    Thread.Sleep(30);
-                    MouseHelper.LeftClick();
-                    LogHelper.Info("Đã tự động bấm nút [ OK ] trên hộp thoại xác nhận giá qua Element!");
-                    return;
-                }
-            }
-
-            // 2. Quét tìm Element hộp thoại cảnh báo (Modal Dialog)
-            var modalDialog = FindPriceDifferenceDialog(ingameUi);
-            if (modalDialog != null && modalDialog.IsValid && modalDialog.IsVisible)
-            {
-                var dialogRect = modalDialog.GetClientRect();
-                if (dialogRect.Width > 100 && dialogRect.Height > 50)
-                {
-                    // Nút OK nằm ở góc dưới bên trái của hộp thoại (25% X, 72% Y)
-                    var okX = dialogRect.Left + dialogRect.Width * 0.25f;
-                    var okY = dialogRect.Top + dialogRect.Height * 0.72f;
-                    MouseHelper.MoveMouse(new Vector2(okX, okY));
-                    Thread.Sleep(30);
-                    MouseHelper.LeftClick();
-                    LogHelper.Info("Đã tự động bấm nút [ OK ] theo tọa độ hộp thoại!");
-                    return;
-                }
-            }
-
-            // 3. Fallback: Tọa độ tiêu chuẩn của nút [ OK ] tại trung tâm màn hình game
             var winRect = gc.Window.GetWindowRectangle();
-            if (winRect.Width > 0 && winRect.Height > 0)
+            if (winRect.Width <= 0 || winRect.Height <= 0) return;
+
+            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
+            var scaleX = winRect.Width / 1920f;
+            var scaleY = winRect.Height / 1080f;
+
+            // Tọa độ CHUẨN XÁC 100% của nút [ OK ] tại trung tâm hộp thoại
+            // Trong độ phân giải 1920x1080: Nút OK nằm chính xác tại X = 760, Y = 502 (Center.X - 200, Center.Y - 38)
+            Vector2 targetOkPos;
+
+            var priceDialog = ingameUi != null ? FindPriceDifferenceDialog(ingameUi) : null;
+            if (priceDialog != null && priceDialog.IsValid && priceDialog.IsVisible)
             {
-                // Tọa độ nút OK tại tâm màn hình (Center X - 185px, Center Y + 38px cho chuẩn 1080p, scale theo tỉ lệ)
-                var scale = winRect.Height / 1080f;
-                var okX = winRect.Center.X - (185f * scale);
-                var okY = winRect.Center.Y + (38f * scale);
-                
-                MouseHelper.MoveMouse(new Vector2(okX, okY));
-                Thread.Sleep(30);
-                MouseHelper.LeftClick();
+                var dialogRect = priceDialog.GetClientRect();
+                if (dialogRect.Width > 200 && dialogRect.Height > 60)
+                {
+                    targetOkPos = new Vector2(
+                        dialogRect.Left + dialogRect.Width * 0.195f,
+                        dialogRect.Top + dialogRect.Height * 0.66f
+                    );
+                }
+                else
+                {
+                    targetOkPos = new Vector2(
+                        winRect.Center.X - (200f * scaleX),
+                        winRect.Center.Y - (38f * scaleY)
+                    );
+                }
+            }
+            else
+            {
+                targetOkPos = new Vector2(
+                    winRect.Center.X - (200f * scaleX),
+                    winRect.Center.Y - (38f * scaleY)
+                );
             }
 
-            // 4. Fallback bàn phím
+            // Di chuyển chuột đến đúng tâm nút [ OK ] và Click dứt khoát
+            MouseHelper.MoveMouse(targetOkPos);
+            Thread.Sleep(35);
+            MouseHelper.LeftClick();
+            Thread.Sleep(35);
+            MouseHelper.LeftClick();
+
+            // Gửi phím hỗ trợ
             Input.KeyPress(Keys.Space);
             Input.KeyPress(Keys.Enter);
+
+            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại tọa độ ({targetOkPos.X:F0}, {targetOkPos.Y:F0})");
         }
         catch (Exception ex)
         {
             LogHelper.Debug($"HandlePriceDifferenceModal error: {ex.Message}");
         }
-    }
-
-    private static Element? FindOkButtonElement(Element? root)
-    {
-        if (root == null || !root.IsValid || !root.IsVisible) return null;
-
-        if (!string.IsNullOrWhiteSpace(root.Text))
-        {
-            var txt = root.Text.Trim();
-            if (txt.Equals("OK", StringComparison.OrdinalIgnoreCase) || 
-                txt.Equals("ACCEPT", StringComparison.OrdinalIgnoreCase) ||
-                txt.Equals("YES", StringComparison.OrdinalIgnoreCase))
-            {
-                return root;
-            }
-        }
-
-        if (root.Children != null)
-        {
-            foreach (var child in root.Children)
-            {
-                var found = FindOkButtonElement(child);
-                if (found != null) return found;
-            }
-        }
-
-        return null;
     }
 
     private static Element? FindPriceDifferenceDialog(Element? root)
