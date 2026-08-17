@@ -23,9 +23,6 @@ echo.
 echo [*] Dang khoi dong Web Trade Tool (autobuypoe)...
 if exist "%PYTHON_TOOL_DIR%" (
     cd /d "%PYTHON_TOOL_DIR%"
-    if exist "launch_chrome.bat" (
-        start "" "launch_chrome.bat"
-    )
     py open_profile.py
 ) else (
     echo [Loi] Khong tim thay thu muc autobuypoe tai: %PYTHON_TOOL_DIR%

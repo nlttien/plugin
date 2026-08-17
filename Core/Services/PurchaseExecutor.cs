@@ -3,7 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Windows.Forms;
 using ExileCore;
+using ExileCore.PoEMemory.Elements;
 using ExileCore.Shared;
 using ShopAutoBuyer.Core.Adapters;
 using ShopAutoBuyer.Core.Models;
@@ -111,10 +113,15 @@ public class PurchaseExecutor
 
                     // 3. Thực hiện thao tác Ctrl + Left Click để mua
                     MouseHelper.CtrlLeftClick();
+                    yield return new WaitTime(120);
+
+                    // 4. Tự động kiểm tra & xác nhận hộp thoại cảnh báo giá (Note: price differs -> OK)
+                    HandlePriceDifferenceModal(_gc);
+
                     totalPurchasedCount++;
                     LogHelper.Info($"[ĐÃ MUA] {item.DisplayName} (Giá: {item.CostString})");
 
-                    // 4. Nghỉ ngơi giữa các lần bấm chuột để giống thao tác người thật
+                    // 5. Nghỉ ngơi giữa các lần bấm chuột
                     yield return new WaitTime(MouseHelper.GetRandomDelay(_settings.MinDelayMs.Value, _settings.MaxDelayMs.Value));
                 }
             }
@@ -133,5 +140,63 @@ public class PurchaseExecutor
             }
             catch { }
         }
+    }
+
+    private static void HandlePriceDifferenceModal(GameController gc)
+    {
+        try
+        {
+            if (gc == null) return;
+            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
+            if (ingameUi == null) return;
+
+            var okButton = FindOkButtonElement(ingameUi);
+            if (okButton != null && okButton.IsValid && okButton.IsVisible)
+            {
+                var rect = okButton.GetClientRect();
+                if (rect.Width > 0 && rect.Height > 0)
+                {
+                    MouseHelper.MoveMouseWithJitter(rect);
+                    MouseHelper.LeftClick();
+                    LogHelper.Info("Đã tự động bấm nút [ OK ] trên hộp thoại xác nhận giá!");
+                    return;
+                }
+            }
+
+            // Fallback pressing Enter or Space
+            Input.KeyPress(Keys.Enter);
+            Input.KeyPress(Keys.Space);
+        }
+        catch (Exception ex)
+        {
+            LogHelper.Debug($"HandlePriceDifferenceModal error: {ex.Message}");
+        }
+    }
+
+    private static Element? FindOkButtonElement(Element? root)
+    {
+        if (root == null || !root.IsValid || !root.IsVisible) return null;
+
+        if (!string.IsNullOrWhiteSpace(root.Text))
+        {
+            var txt = root.Text.Trim();
+            if (txt.Equals("OK", StringComparison.OrdinalIgnoreCase) || 
+                txt.Equals("ACCEPT", StringComparison.OrdinalIgnoreCase) ||
+                txt.Equals("YES", StringComparison.OrdinalIgnoreCase))
+            {
+                return root;
+            }
+        }
+
+        if (root.Children != null)
+        {
+            foreach (var child in root.Children)
+            {
+                var found = FindOkButtonElement(child);
+                if (found != null) return found;
+            }
+        }
+
+        return null;
     }
 }
