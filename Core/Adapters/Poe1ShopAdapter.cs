@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using ExileCore;
 using ExileCore.PoEMemory.Components;
@@ -180,10 +181,34 @@ public class Poe1ShopAdapter : IShopAdapter
         itemInfo.IsTimelessJewel = true;
         itemInfo.BaseName = "Timeless Jewel";
 
-        // Collect stats text
+        // Collect stats text safely from HumanStats and ExplicitMods
         var statsList = new List<string>();
-        if (modsComp.HumanStats != null) statsList.AddRange(modsComp.HumanStats);
-        if (modsComp.ExplicitMods != null) statsList.AddRange(modsComp.ExplicitMods);
+        if (modsComp.HumanStats != null)
+        {
+            statsList.AddRange(modsComp.HumanStats);
+        }
+
+        if (modsComp.ExplicitMods != null)
+        {
+            foreach (var mod in modsComp.ExplicitMods)
+            {
+                if (mod != null)
+                {
+                    statsList.Add($"{mod.DisplayName} {mod.Name} {mod.Value1} {mod.Value2}".Trim());
+                }
+            }
+        }
+
+        if (modsComp.ItemMods != null)
+        {
+            foreach (var mod in modsComp.ItemMods)
+            {
+                if (mod != null)
+                {
+                    statsList.Add($"{mod.DisplayName} {mod.Name} {mod.Value1} {mod.Value2}".Trim());
+                }
+            }
+        }
 
         itemInfo.ExplicitMods = statsList;
 

@@ -1,0 +1,2 @@
+Build failed:
+[8/17/2026 12:23:59 PM, D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\Core\Adapters\Poe1ShopAdapter.cs(186, 63)] CS1503: Argument 1: cannot convert from 'System.Collections.Generic.List<ExileCore.PoEMemory.MemoryObjects.ItemMod>' to 'System.Collections.Generic.IEnumerable<string>'
