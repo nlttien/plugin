@@ -123,7 +123,7 @@ public class Poe1ShopAdapter : IShopAdapter
                         itemInfo.ItemLevel = modsComp.ItemLevel;
                         itemInfo.Name = modsComp.UniqueName ?? itemInfo.BaseName;
 
-                        // Check Timeless Jewel identification
+                        // Check Timeless Jewel identification strictly
                         CheckAndParseTimelessJewel(itemInfo, modsComp);
                     }
 
@@ -164,29 +164,52 @@ public class Poe1ShopAdapter : IShopAdapter
 
     private static void CheckAndParseTimelessJewel(ShopItemInfo itemInfo, Mods modsComp)
     {
-        var path = itemInfo.ItemPath;
+        // 1. Timeless Jewels MUST BE UNIQUE
+        if (itemInfo.Rarity != ItemRarity.Unique)
+        {
+            itemInfo.IsTimelessJewel = false;
+            return;
+        }
+
+        var path = itemInfo.ItemPath ?? string.Empty;
         var name = itemInfo.Name ?? string.Empty;
         var baseName = itemInfo.BaseName ?? string.Empty;
 
-        var isTimeless = path.Contains("JewelPassiveTreeExpansion", StringComparison.OrdinalIgnoreCase) ||
-                         baseName.Contains("Timeless Jewel", StringComparison.OrdinalIgnoreCase) ||
-                         name.Contains("Brutal Restraint", StringComparison.OrdinalIgnoreCase) ||
-                         name.Contains("Glorious Vanity", StringComparison.OrdinalIgnoreCase) ||
-                         name.Contains("Lethal Pride", StringComparison.OrdinalIgnoreCase) ||
-                         name.Contains("Militant Faith", StringComparison.OrdinalIgnoreCase) ||
-                         name.Contains("Elegant Hubris", StringComparison.OrdinalIgnoreCase);
-
-        if (!isTimeless) return;
-
-        itemInfo.IsTimelessJewel = true;
-        itemInfo.BaseName = "Timeless Jewel";
-
-        // Collect stats text safely from HumanStats and ExplicitMods
-        var statsList = new List<string>();
-        if (modsComp.HumanStats != null)
+        // 2. EXCLUDE Cluster Jewels (Large/Medium/Small Cluster, Voices, Megalomaniac)
+        if (path.Contains("Large", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("Medium", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("Small", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("Cluster", StringComparison.OrdinalIgnoreCase) ||
+            baseName.Contains("Cluster", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("Voices", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("Megalomaniac", StringComparison.OrdinalIgnoreCase))
         {
-            statsList.AddRange(modsComp.HumanStats);
+            itemInfo.IsTimelessJewel = false;
+            return;
         }
+
+        // 3. STRICT MATCH: Must match one of the 5 exact Timeless Jewels
+        var isExactTimeless = name.Equals("Brutal Restraint", StringComparison.OrdinalIgnoreCase) ||
+                              name.Equals("Glorious Vanity", StringComparison.OrdinalIgnoreCase) ||
+                              name.Equals("Lethal Pride", StringComparison.OrdinalIgnoreCase) ||
+                              name.Equals("Militant Faith", StringComparison.OrdinalIgnoreCase) ||
+                              name.Equals("Elegant Hubris", StringComparison.OrdinalIgnoreCase) ||
+                              baseName.Equals("Timeless Jewel", StringComparison.OrdinalIgnoreCase) ||
+                              path.Contains("JewelPassiveTreeExpansionMaraketh", StringComparison.OrdinalIgnoreCase) ||
+                              path.Contains("JewelPassiveTreeExpansionVaal", StringComparison.OrdinalIgnoreCase) ||
+                              path.Contains("JewelPassiveTreeExpansionKarui", StringComparison.OrdinalIgnoreCase) ||
+                              path.Contains("JewelPassiveTreeExpansionTemplar", StringComparison.OrdinalIgnoreCase) ||
+                              path.Contains("JewelPassiveTreeExpansionEternalEmpire", StringComparison.OrdinalIgnoreCase);
+
+        if (!isExactTimeless)
+        {
+            itemInfo.IsTimelessJewel = false;
+            return;
+        }
+
+        // Collect stats text safely
+        var statsList = new List<string>();
+        if (modsComp.HumanStats != null) statsList.AddRange(modsComp.HumanStats);
 
         if (modsComp.ExplicitMods != null)
         {
@@ -212,18 +235,33 @@ public class Poe1ShopAdapter : IShopAdapter
 
         itemInfo.ExplicitMods = statsList;
 
-        // Parse Seed & Leader
+        // 4. Must verify Timeless Jewel keyword / Historic modifier
+        var hasHistoricOrTimelessMod = false;
+
         foreach (var stat in statsList)
         {
             if (string.IsNullOrWhiteSpace(stat)) continue;
 
-            // Match seed numbers, e.g. "3693 dekhara" or "1234 warriors"
-            var match = Regex.Match(stat, @"\b(\d{2,6})\b");
-            if (match.Success && int.TryParse(match.Groups[1].Value, out var seed))
+            // Match seed numbers, e.g. "service of 2213 dekhara" or "15045 warriors" or "17814 verses"
+            var seedMatch = Regex.Match(stat, @"(?:service of|commissioned|bathed in the blood of|chanted|carved to glorify|of)\s*(\d{2,6})\s*(?:dekhara|warriors|sacrificed|verses|victims|servants)?", RegexOptions.IgnoreCase);
+            if (seedMatch.Success && int.TryParse(seedMatch.Groups[1].Value, out var seedVal))
             {
-                if (seed > 0 && itemInfo.TimelessSeed == 0)
+                if (seedVal > 0)
                 {
-                    itemInfo.TimelessSeed = seed;
+                    itemInfo.TimelessSeed = seedVal;
+                    hasHistoricOrTimelessMod = true;
+                }
+            }
+            else
+            {
+                // Fallback 4-5 digit number match
+                var fallbackMatch = Regex.Match(stat, @"\b(\d{3,6})\b");
+                if (fallbackMatch.Success && int.TryParse(fallbackMatch.Groups[1].Value, out var fbSeed))
+                {
+                    if (fbSeed >= 100 && itemInfo.TimelessSeed == 0)
+                    {
+                        itemInfo.TimelessSeed = fbSeed;
+                    }
                 }
             }
 
@@ -233,9 +271,27 @@ public class Poe1ShopAdapter : IShopAdapter
                 if (stat.Contains(leader, StringComparison.OrdinalIgnoreCase))
                 {
                     itemInfo.TimelessLeader = leader;
+                    hasHistoricOrTimelessMod = true;
                     break;
                 }
             }
+
+            if (stat.Contains("Historic", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Conquered by", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Passives in radius", StringComparison.OrdinalIgnoreCase))
+            {
+                hasHistoricOrTimelessMod = true;
+            }
+        }
+
+        if (hasHistoricOrTimelessMod || isExactTimeless)
+        {
+            itemInfo.IsTimelessJewel = true;
+            itemInfo.BaseName = "Timeless Jewel";
+        }
+        else
+        {
+            itemInfo.IsTimelessJewel = false;
         }
     }
 
