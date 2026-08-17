@@ -167,18 +167,22 @@ public class PurchaseExecutor
             Vector2 targetPos = Vector2.Zero;
             bool foundFromMemory = false;
 
-            // 1. TÌM TRỰC TIẾP TỪ BỘ NHỚ: IngameUi.TwoButtonWindowOk
+            // 1. TÌM TRỰC TIẾP TỪ BỘ NHỚ: IngameUi.TwoButtonWindow.TwoButtonWindowOk
             try
             {
-                var twoBtnOk = ingameUi?.TwoButtonWindowOk;
-                if (twoBtnOk != null && twoBtnOk.IsValid && twoBtnOk.IsVisible)
+                var twoBtn = ingameUi?.TwoButtonWindow;
+                if (twoBtn != null && twoBtn.IsValid && twoBtn.IsVisible)
                 {
-                    var btnRect = twoBtnOk.GetClientRect();
-                    if (btnRect.Width > 10 && btnRect.Height > 10)
+                    var twoBtnOk = twoBtn.TwoButtonWindowOk;
+                    if (twoBtnOk != null && twoBtnOk.IsValid && twoBtnOk.IsVisible)
                     {
-                        targetPos = new Vector2(btnRect.Center.X, btnRect.Center.Y);
-                        foundFromMemory = true;
-                        LogHelper.Info($"[Bộ Nhớ] Đã tìm thấy nút OK từ TwoButtonWindowOk tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
+                        var btnRect = twoBtnOk.GetClientRect();
+                        if (btnRect.Width > 10 && btnRect.Height > 10)
+                        {
+                            targetPos = new Vector2(btnRect.Center.X, btnRect.Center.Y);
+                            foundFromMemory = true;
+                            LogHelper.Info($"[Bộ Nhớ] Đã tìm thấy nút OK từ TwoButtonWindow tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
+                        }
                     }
                 }
             }
