@@ -111,7 +111,21 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             var isShopOpen = adapter.IsShopOpen(GameController);
             _isShopOpenCached = isShopOpen;
 
-            // 3. TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam bat ky nut nao
+            // 3. Tu dong tat hop thoai canh bao gia [ OK ] neu dang xuat hien
+            if (isShopOpen && !_isPausedByUser)
+            {
+                var ingameUi = GameController.IngameState?.IngameUi ?? GameController.Game?.IngameState?.IngameUi;
+                if (ingameUi != null)
+                {
+                    var priceDialog = PurchaseExecutor.FindPriceDifferenceDialog(ingameUi);
+                    if (priceDialog != null && priceDialog.IsValid && priceDialog.IsVisible)
+                    {
+                        PurchaseExecutor.HandlePriceDifferenceModal(GameController);
+                    }
+                }
+            }
+
+            // 4. TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam bat ky nut nao
             if (isShopOpen && !_isPausedByUser && Settings?.HighlightOnlyMode?.Value != true)
             {
                 var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);

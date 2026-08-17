@@ -124,7 +124,7 @@ public class PurchaseExecutor
                     MouseHelper.CtrlLeftClick();
                     yield return new WaitTime(120);
 
-                    // 4. Tự động kiểm tra & CLICK CHUẨN XÁC nút [ OK ] trên hộp thoại cảnh báo giá
+                    // 4. Tự động kiểm tra & CLICK CHÍNH XÁC 100% vào tâm nút [ OK ] (X = 775, Y = 502)
                     HandlePriceDifferenceModal(_gc);
                     yield return new WaitTime(100);
 
@@ -167,49 +167,40 @@ public class PurchaseExecutor
             var scaleX = winRect.Width / 1920f;
             var scaleY = winRect.Height / 1080f;
 
-            // Tọa độ CHUẨN XÁC 100% của nút [ OK ] tại trung tâm hộp thoại
-            // Trong độ phân giải 1920x1080: Nút OK nằm chính xác tại X = 760, Y = 502 (Center.X - 200, Center.Y - 38)
-            Vector2 targetOkPos;
+            // Tọa độ CHÍNH XÁC 100% TÂM NÚT [ OK ]: X = 775, Y = 502 (Chuẩn 1920x1080)
+            var exactOkPos = new Vector2(775f * scaleX, 502f * scaleY);
 
-            var priceDialog = ingameUi != null ? FindPriceDifferenceDialog(ingameUi) : null;
-            if (priceDialog != null && priceDialog.IsValid && priceDialog.IsVisible)
+            // Nếu tìm thấy Element hộp thoại, căn theo tâm ngang của hộp thoại
+            if (ingameUi != null)
             {
-                var dialogRect = priceDialog.GetClientRect();
-                if (dialogRect.Width > 200 && dialogRect.Height > 60)
+                var priceDialog = FindPriceDifferenceDialog(ingameUi);
+                if (priceDialog != null && priceDialog.IsValid && priceDialog.IsVisible)
                 {
-                    targetOkPos = new Vector2(
-                        dialogRect.Left + dialogRect.Width * 0.195f,
-                        dialogRect.Top + dialogRect.Height * 0.66f
-                    );
-                }
-                else
-                {
-                    targetOkPos = new Vector2(
-                        winRect.Center.X - (200f * scaleX),
-                        winRect.Center.Y - (38f * scaleY)
-                    );
+                    var dialogRect = priceDialog.GetClientRect();
+                    if (dialogRect.Width > 150 && dialogRect.Height > 40)
+                    {
+                        exactOkPos = new Vector2(
+                            dialogRect.Center.X,
+                            dialogRect.Top + dialogRect.Height * 0.70f
+                        );
+                    }
                 }
             }
-            else
-            {
-                targetOkPos = new Vector2(
-                    winRect.Center.X - (200f * scaleX),
-                    winRect.Center.Y - (38f * scaleY)
-                );
-            }
 
-            // Di chuyển chuột đến đúng tâm nút [ OK ] và Click dứt khoát
-            MouseHelper.MoveMouse(targetOkPos);
-            Thread.Sleep(35);
+            // 1. Di chuyển chuột thẳng đến tâm nút [ OK ]
+            MouseHelper.MoveMouse(exactOkPos);
+            Thread.Sleep(45);
+
+            // 2. Bấm Click chuột trái 2 lần liên tiếp
             MouseHelper.LeftClick();
-            Thread.Sleep(35);
+            Thread.Sleep(40);
             MouseHelper.LeftClick();
 
-            // Gửi phím hỗ trợ
+            // 3. Gửi phím Space và Enter để xác nhận
             Input.KeyPress(Keys.Space);
             Input.KeyPress(Keys.Enter);
 
-            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại tọa độ ({targetOkPos.X:F0}, {targetOkPos.Y:F0})");
+            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại tâm nút ({exactOkPos.X:F0}, {exactOkPos.Y:F0})");
         }
         catch (Exception ex)
         {
@@ -217,7 +208,7 @@ public class PurchaseExecutor
         }
     }
 
-    private static Element? FindPriceDifferenceDialog(Element? root)
+    public static Element? FindPriceDifferenceDialog(Element? root)
     {
         if (root == null || !root.IsValid || !root.IsVisible) return null;
 
