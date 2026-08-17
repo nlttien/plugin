@@ -27,26 +27,33 @@ public class PurchaseExecutor
 
     public IEnumerator ExecutePurchaseCoroutine()
     {
-        if (IsRunning) yield break;
+        if (IsRunning)
+        {
+            LogHelper.Warn("Tiến trình mua đang thực hiện, vui lòng chờ.");
+            yield break;
+        }
+
         IsRunning = true;
+        LogHelper.Info("=== Bắt đầu tiến trình tự động mua đồ trong Shop ===");
 
         try
         {
-            var adapter = _adapterFactory.GetAdapter(_gc, _settings.GameVersion.Value);
+            var versionStr = _settings.GameVersion?.Value ?? "AutoDetect";
+            var adapter = _adapterFactory.GetAdapter(_gc, versionStr);
+
             if (!adapter.IsShopOpen(_gc))
             {
-                LogHelper.Warn("Không thể mua: Cửa sổ Shop NPC chưa mở!");
+                LogHelper.Warn("Cửa sổ Shop chưa được mở!");
                 yield break;
             }
 
-            LogHelper.Info($"Bắt đầu quét và mua đồ bằng [{adapter.AdapterName}]...");
+            var tabCount = _settings.ScanAllTabs.Value ? adapter.GetTabCount(_gc) : 1;
+            var startTabIndex = _settings.ScanAllTabs.Value ? 0 : adapter.GetCurrentTabIndex(_gc);
+            var endTabIndex = _settings.ScanAllTabs.Value ? tabCount : startTabIndex + 1;
 
-            var processedTabIndices = new HashSet<int>();
-            var totalPurchased = 0;
+            var totalPurchasedCount = 0;
 
-            var tabCount = _settings.ScanAllTabs.Value ? Math.Max(1, adapter.GetTabCount(_gc)) : 1;
-
-            for (var tabIndex = 0; tabIndex < tabCount; tabIndex++)
+            for (var tabIndex = startTabIndex; tabIndex < endTabIndex; tabIndex++)
             {
                 if (!_settings.Enable.Value || !adapter.IsShopOpen(_gc))
                 {
@@ -68,8 +75,16 @@ public class PurchaseExecutor
                 }
 
                 // Get matching items
-                var activeRules = _settings.GetActiveRules();
-                var matchingItems = currentItems.Where(i => ItemFilterEngine.MatchesAnyRule(i, activeRules)).ToList();
+                List<ShopItemInfo> matchingItems;
+                if (_settings.OnlyBuyTimelessJewels?.Value == true)
+                {
+                    matchingItems = currentItems.Where(i => ItemFilterEngine.MatchesTimelessSettings(i, _settings)).ToList();
+                }
+                else
+                {
+                    var activeRules = _settings.GetActiveRules();
+                    matchingItems = currentItems.Where(i => ItemFilterEngine.MatchesAnyRule(i, activeRules)).ToList();
+                }
 
                 if (matchingItems.Count == 0)
                 {
@@ -89,21 +104,21 @@ public class PurchaseExecutor
                         yield break;
                     }
 
-                    // 2. Di chuyển chuột tới item với độ lệch ngẫu nhiên
+                    // 2. Di chuột đến vị trí item trong Shop
                     MouseHelper.MoveMouseWithJitter(item.ScreenRect);
                     yield return new WaitTime(MouseHelper.GetRandomDelay(_settings.MinDelayMs.Value, _settings.MaxDelayMs.Value));
 
-                    // 3. Thực hiện Ctrl + Click mua
+                    // 3. Thực hiện thao tác Ctrl + Left Click để mua
                     MouseHelper.CtrlLeftClick();
-                    totalPurchased++;
-                    LogHelper.Info($"Đã mua: {item.BaseName} ({item.Rarity})");
+                    totalPurchasedCount++;
+                    LogHelper.Info($"[ĐÃ MUA] {item.DisplayName} (Vị trí: [{item.SlotX + 1},{item.SlotY + 1}])");
 
-                    // 4. Nghỉ ngẫu nhiên giữa các lần click
+                    // 4. Nghỉ ngơi giữa các lần bấm chuột để giống thao tác người thật
                     yield return new WaitTime(MouseHelper.GetRandomDelay(_settings.MinDelayMs.Value, _settings.MaxDelayMs.Value));
                 }
             }
 
-            LogHelper.Info($"Hoàn tất chu kỳ mua! Tổng số vật phẩm đã mua: {totalPurchased}.");
+            LogHelper.Info($"=== Hoàn thành mua đồ! Tổng cộng đã mua: {totalPurchasedCount} vật phẩm. ===");
         }
         finally
         {

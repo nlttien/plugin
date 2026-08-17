@@ -3,6 +3,11 @@ namespace ShopAutoBuyer.Core.Models;
 public class CurrencyCost
 {
     public string CurrencyName { get; set; } = string.Empty;
+    public string CurrencyType
+    {
+        get => CurrencyName;
+        set => CurrencyName = value;
+    }
     public int Amount { get; set; } = 0;
     public bool IsGold { get; set; } = false;
 

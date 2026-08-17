@@ -51,7 +51,7 @@ public static class ItemFilterEngine
         var maxDivine = settings.MaxDivinePrice?.Value ?? 0;
         if (maxDivine > 0 && item.Cost != null)
         {
-            if (item.Cost.CurrencyType == "Divine Orb" && item.Cost.Amount > maxDivine)
+            if (item.Cost.CurrencyName.Contains("Divine", StringComparison.OrdinalIgnoreCase) && item.Cost.Amount > maxDivine)
                 return false;
         }
 
@@ -137,5 +137,11 @@ public static class ItemFilterEngine
         }
 
         return true;
+    }
+
+    public static bool MatchesAnyRule(ShopItemInfo item, IEnumerable<FilterRule> rules)
+    {
+        if (rules == null) return false;
+        return rules.Any(r => MatchesRule(item, r));
     }
 }
