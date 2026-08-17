@@ -122,14 +122,9 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
             if (isShopOpen && !_isPausedByUser && !isRunning)
             {
-                var ingameUi = GameController.IngameState?.IngameUi ?? GameController.Game?.IngameState?.IngameUi;
-                if (ingameUi != null)
+                if (PurchaseExecutor.IsPriceDifferenceModalOpen(GameController))
                 {
-                    var priceDialog = PurchaseExecutor.FindPriceDifferenceDialogInMemory(ingameUi);
-                    if (priceDialog != null && priceDialog.IsValid && priceDialog.IsVisible)
-                    {
-                        PurchaseExecutor.HandlePriceDifferenceModal(GameController, Settings);
-                    }
+                    PurchaseExecutor.HandlePriceDifferenceModal(GameController, Settings);
                 }
             }
 

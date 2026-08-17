@@ -51,7 +51,7 @@ public class PurchaseExecutor
             var adapter = _adapterFactory.GetAdapter(_gc, versionStr);
 
             // Chờ ngắn để UI và danh sách vật phẩm nạp đầy đủ vào bộ nhớ
-            yield return new WaitTime(200);
+            yield return new WaitTime(150);
 
             if (!adapter.IsShopOpen(_gc))
             {
@@ -74,18 +74,18 @@ public class PurchaseExecutor
                 if (_settings.ScanAllTabs.Value && tabCount > 1)
                 {
                     adapter.SwitchToTab(_gc, tabIndex);
-                    yield return new WaitTime(MouseHelper.GetRandomDelay(250, 350));
+                    yield return new WaitTime(MouseHelper.GetRandomDelay(200, 300));
                 }
 
                 var currentItems = adapter.GetAvailableItems(_gc);
                 if (currentItems == null || currentItems.Count == 0)
                 {
-                    yield return new WaitTime(100);
+                    yield return new WaitTime(80);
                     currentItems = adapter.GetAvailableItems(_gc);
                     if (currentItems == null || currentItems.Count == 0) continue;
                 }
 
-                // Get matching items
+                // Lấy danh sách item đạt chuẩn
                 List<ShopItemInfo> matchingItems;
                 if (_settings.OnlyBuyTimelessJewels?.Value == true)
                 {
@@ -122,9 +122,9 @@ public class PurchaseExecutor
                     // 3. Thực hiện thao tác Ctrl + Left Click để mua
                     MouseHelper.CtrlLeftClick();
 
-                    // Đợi server phản hồi và kiểm tra liên tục xem hộp thoại cảnh báo giá có xuất hiện không (trong 350ms)
+                    // Đợi server phản hồi và quét chủ động xem hộp thoại cảnh báo giá có xuất hiện không (trong 450ms)
                     var modalDetected = false;
-                    for (var checkStep = 0; checkStep < 7; checkStep++)
+                    for (var checkStep = 0; checkStep < 9; checkStep++)
                     {
                         yield return new WaitTime(50);
                         if (IsPriceDifferenceModalOpen(_gc))
@@ -134,11 +134,11 @@ public class PurchaseExecutor
                         }
                     }
 
-                    // 4. CHỈ BẤM NÚT [ OK ] ĐÚNG 1 LẦN DUY NHẤT KHI CÓ HỘP THOẠI
+                    // 4. BẤM NÚT [ OK ] ĐÚNG 1 LẦN KHI CÓ HỘP THOẠI
                     if (modalDetected || IsPriceDifferenceModalOpen(_gc))
                     {
-                        LogHelper.Info("Phát hiện hộp thoại cảnh báo giá! Bấm [ OK ] 1 lần duy nhất...");
-                        yield return new WaitTime(60);
+                        LogHelper.Info("Phát hiện hộp thoại cảnh báo giá! Bấm [ OK ] ngay...");
+                        yield return new WaitTime(50);
                         HandlePriceDifferenceModal(_gc, _settings);
                         
                         // Đợi hộp thoại đóng hoàn toàn
@@ -163,17 +163,15 @@ public class PurchaseExecutor
         finally
         {
             IsRunning = false;
-            // Chỉ ghi tín hiệu hoàn thành khi không bị lệnh Stop
-            if (!RequestStop)
+            // Ghi tín hiệu hoàn thành vào file cầu nối trade_bridge.json
+            try
             {
-                try
-                {
-                    var bridgeFile = @"D:\codecuatien\trade_bridge.json";
-                    var json = $"{{\"status\":\"COMPLETED\",\"items_bought\":{totalPurchasedCount},\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
-                    File.WriteAllText(bridgeFile, json);
-                }
-                catch { }
+                var bridgeFile = @"D:\codecuatien\trade_bridge.json";
+                var statusStr = RequestStop ? "STOPPED" : "COMPLETED";
+                var json = $"{{\"status\":\"{statusStr}\",\"items_bought\":{totalPurchasedCount},\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
+                File.WriteAllText(bridgeFile, json);
             }
+            catch { }
         }
     }
 
@@ -185,17 +183,20 @@ public class PurchaseExecutor
             var ingameState = gc.IngameState ?? gc.Game?.IngameState;
             if (ingameState == null) return false;
 
+            // 1. Quét IngameUi
             var ingameUi = ingameState.IngameUi;
-            if (ingameUi != null)
+            if (ingameUi != null && ingameUi.IsValid)
             {
-                var d = FindPriceDifferenceDialogInMemory(ingameUi);
-                if (d != null && d.IsValid && d.IsVisible) return true;
+                var d = FindPriceDifferenceDialogInMemory(ingameUi, 0);
+                if (d != null && d.IsValid) return true;
             }
 
-            if (ingameState.UIRoot != null)
+            // 2. Quét UIRoot
+            var uiRoot = ingameState.UIRoot;
+            if (uiRoot != null && uiRoot.IsValid)
             {
-                var d = FindPriceDifferenceDialogInMemory(ingameState.UIRoot);
-                if (d != null && d.IsValid && d.IsVisible) return true;
+                var d = FindPriceDifferenceDialogInMemory(uiRoot, 0);
+                if (d != null && d.IsValid) return true;
             }
         }
         catch { }
@@ -208,7 +209,6 @@ public class PurchaseExecutor
         try
         {
             if (gc == null) return;
-            // CHỈ BẤM KHI HỘP THOẠI CẢNH BÁO GIÁ THỰC SỰ XUẤT HIỆN
             if (!IsPriceDifferenceModalOpen(gc)) return;
 
             var realWinRect = gc.Window.GetWindowRectangleReal();
@@ -225,10 +225,10 @@ public class PurchaseExecutor
 
             var targetPos = new Vector2(realWinRect.Left + customX * scaleX, realWinRect.Top + customY * scaleY);
 
-            // BẤM ĐÚNG 1 LẦN DUY NHẤT VÀO TÂM NÚT [ OK ] (ĐỢI 120ms ĐỂ HOVER RỒI CLICK)
-            MouseHelper.LeftClickAt(targetPos, 120, 50);
+            // BẤM ĐÚNG 1 LẦN DUY NHẤT VÀO TÂM NÚT [ OK ] (ĐỢI 100ms ĐỂ HOVER RỒI CLICK)
+            MouseHelper.LeftClickAt(targetPos, 100, 45);
 
-            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] 1 lần tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
+            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
         }
         catch (Exception ex)
         {
@@ -236,15 +236,16 @@ public class PurchaseExecutor
         }
     }
 
-    public static Element? FindPriceDifferenceDialogInMemory(Element? root, int depth = 0)
+    public static Element? FindPriceDifferenceDialogInMemory(Element? root, int depth)
     {
-        if (root == null || !root.IsValid || !root.IsVisible || depth > 25) return null;
+        if (root == null || !root.IsValid || depth > 25) return null;
 
         var txt = (root.Text ?? string.Empty).ToLowerInvariant();
         var txtNoTags = (root.TextNoTags ?? string.Empty).ToLowerInvariant();
 
-        if (txt.Contains("price differs") || txt.Contains("initially travelled") || txt.Contains("differs from") || txt.Contains("this item's price") ||
-            txtNoTags.Contains("price differs") || txtNoTags.Contains("initially travelled") || txtNoTags.Contains("differs from") || txtNoTags.Contains("this item's price"))
+        // Kiểm tra từ khóa hộp thoại cảnh báo giá
+        if (txt.Contains("price differs") || txt.Contains("initially travelled") || txt.Contains("differs from") || txt.Contains("this item's price") || txt.Contains("differs") ||
+            txtNoTags.Contains("price differs") || txtNoTags.Contains("initially travelled") || txtNoTags.Contains("differs from") || txtNoTags.Contains("this item's price") || txtNoTags.Contains("differs"))
         {
             return root.Parent ?? root;
         }
@@ -253,8 +254,11 @@ public class PurchaseExecutor
         {
             foreach (var child in root.Children)
             {
-                var found = FindPriceDifferenceDialogInMemory(child, depth + 1);
-                if (found != null) return found;
+                if (child != null && child.IsValid)
+                {
+                    var found = FindPriceDifferenceDialogInMemory(child, depth + 1);
+                    if (found != null) return found;
+                }
             }
         }
 
