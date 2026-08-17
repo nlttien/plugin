@@ -37,8 +37,8 @@ public static class InventorySpaceChecker
             {
                 if (invItem == null || !invItem.IsValid) continue;
 
-                var slotX = invItem.InventSlotX;
-                var slotY = invItem.InventSlotY;
+                var slotX = invItem.InventPosX;
+                var slotY = invItem.InventPosY;
                 var w = Math.Max(1, invItem.ItemWidth);
                 var h = Math.Max(1, invItem.ItemHeight);
 

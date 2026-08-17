@@ -163,8 +163,8 @@ public class Poe2ShopAdapter : IShopAdapter
             ScreenRect = clientRect,
             ClickPosition = new Vector2(clientRect.Center.X, clientRect.Center.Y),
             TabIndex = tabIndex,
-            SlotX = invItem.InventSlotX,
-            SlotY = invItem.InventSlotY,
+            SlotX = invItem.InventPosX,
+            SlotY = invItem.InventPosY,
             Width = Math.Max(1, invItem.ItemWidth),
             Height = Math.Max(1, invItem.ItemHeight)
         };
