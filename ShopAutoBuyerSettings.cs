@@ -9,38 +9,38 @@ namespace ShopAutoBuyer;
 
 public class ShopAutoBuyerSettings : ISettings
 {
-    public ToggleNode Enable { get; set; } = new(false);
+    public ToggleNode Enable { get; set; } = new ToggleNode(false);
 
-    public ListNode GameVersion { get; set; } = new()
+    public ListNode GameVersion { get; set; } = new ListNode
     {
         Values = new List<string> { "AutoDetect", "PathOfExile1", "PathOfExile2" },
         Value = "AutoDetect"
     };
 
-    public HotkeyNode TriggerHotkey { get; set; } = new(Keys.F5);
-    public ToggleNode AutoBuyOnOpen { get; set; } = new(false);
-    public ToggleNode ScanAllTabs { get; set; } = new(true);
-    public ToggleNode HighlightOnlyMode { get; set; } = new(false);
+    public HotkeyNode TriggerHotkey { get; set; } = new HotkeyNode(Keys.F5);
+    public ToggleNode AutoBuyOnOpen { get; set; } = new ToggleNode(false);
+    public ToggleNode ScanAllTabs { get; set; } = new ToggleNode(true);
+    public ToggleNode HighlightOnlyMode { get; set; } = new ToggleNode(false);
 
     // Delays
-    public RangeNode<int> MinDelayMs { get; set; } = new(100, 30, 1000);
-    public RangeNode<int> MaxDelayMs { get; set; } = new(220, 50, 2000);
+    public RangeNode<int> MinDelayMs { get; set; } = new RangeNode<int>(100, 30, 1000);
+    public RangeNode<int> MaxDelayMs { get; set; } = new RangeNode<int>(220, 50, 2000);
 
     // Visuals
-    public ColorNode HighlightColor { get; set; } = new(Color.LimeGreen);
-    public RangeNode<int> BorderThickness { get; set; } = new(3, 1, 8);
+    public ColorNode HighlightColor { get; set; } = new ColorNode(Color.LimeGreen);
+    public RangeNode<int> BorderThickness { get; set; } = new RangeNode<int>(3, 1, 8);
 
     // Filter Rules
-    public TextNode BaseNamesFilter { get; set; } = new("Amethyst Ring, Heavy Belt, Two-Stone Ring, Sapphire Ring, Ruby Ring, Topaz Ring, Uncut");
-    public ToggleNode BuyNormal { get; set; } = new(true);
-    public ToggleNode BuyMagic { get; set; } = new(true);
-    public ToggleNode BuyRare { get; set; } = new(true);
-    public ToggleNode BuyUnique { get; set; } = new(true);
-    public RangeNode<int> MinItemLevel { get; set; } = new(0, 0, 100);
-    public RangeNode<int> MinQuality { get; set; } = new(0, 0, 30);
-    public RangeNode<int> MinSockets { get; set; } = new(0, 0, 6);
-    public RangeNode<int> MinLinks { get; set; } = new(0, 0, 6);
-    public ToggleNode BuyRgbChromatic { get; set; } = new(false);
+    public TextNode BaseNamesFilter { get; set; } = new TextNode("Amethyst Ring, Heavy Belt, Two-Stone Ring, Sapphire Ring, Ruby Ring, Topaz Ring, Uncut");
+    public ToggleNode BuyNormal { get; set; } = new ToggleNode(true);
+    public ToggleNode BuyMagic { get; set; } = new ToggleNode(true);
+    public ToggleNode BuyRare { get; set; } = new ToggleNode(true);
+    public ToggleNode BuyUnique { get; set; } = new ToggleNode(true);
+    public RangeNode<int> MinItemLevel { get; set; } = new RangeNode<int>(0, 0, 100);
+    public RangeNode<int> MinQuality { get; set; } = new RangeNode<int>(0, 0, 30);
+    public RangeNode<int> MinSockets { get; set; } = new RangeNode<int>(0, 0, 6);
+    public RangeNode<int> MinLinks { get; set; } = new RangeNode<int>(0, 0, 6);
+    public ToggleNode BuyRgbChromatic { get; set; } = new ToggleNode(false);
 
     public List<FilterRule> GetActiveRules()
     {

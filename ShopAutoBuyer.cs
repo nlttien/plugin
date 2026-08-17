@@ -18,7 +18,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     private ShopAdapterFactory _adapterFactory = null!;
     private PurchaseExecutor _purchaseExecutor = null!;
     private bool _wasShopOpenLastFrame;
-    private List<ShopItemInfo> _cachedMatchingItems = new();
+    private List<ShopItemInfo> _cachedMatchingItems = new List<ShopItemInfo>();
     private DateTime _lastScanTime = DateTime.MinValue;
 
     public override bool Initialise()
@@ -31,9 +31,9 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         return true;
     }
 
-    public override Job? Tick()
+    public override Job Tick()
     {
-        if (!Settings.Enable.Value) return null;
+        if (!Settings.Enable.Value) return null!;
 
         try
         {
@@ -76,7 +76,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             LogHelper.Error("Lỗi trong Tick()", ex);
         }
 
-        return null;
+        return null!;
     }
 
     public override void Render()
