@@ -36,6 +36,13 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
         }
 
+        // Tu dong chuyen gia tri cu (787, 545) sang toa do chuan xac (750, 575)
+        if (Settings != null)
+        {
+            if (Settings.OkButtonX.Value == 787) Settings.OkButtonX.Value = 750;
+            if (Settings.OkButtonY.Value == 545) Settings.OkButtonY.Value = 575;
+        }
+
         // Gan su kien cho nut dung khan cap trong menu
         if (Settings?.EmergencyStopButton != null)
         {
