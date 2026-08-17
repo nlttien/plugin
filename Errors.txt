@@ -1,4 +1,0 @@
-Build failed:
-[8/17/2026 12:01:51 PM, D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\ShopAutoBuyer.cs(148, 9)] CS0234: The type or namespace name 'ParallelRunner' does not exist in the namespace 'ShopAutoBuyer.Core' (are you missing an assembly reference?)
-[8/17/2026 12:01:51 PM, D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\Core\Adapters\Poe2ShopAdapter.cs(104, 20)] CS0266: Cannot implicitly convert type 'long' to 'int'. An explicit conversion exists (are you missing a cast?)
-[8/17/2026 12:01:51 PM, D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\Core\Adapters\Poe1ShopAdapter.cs(152, 20)] CS0266: Cannot implicitly convert type 'long' to 'int'. An explicit conversion exists (are you missing a cast?)
