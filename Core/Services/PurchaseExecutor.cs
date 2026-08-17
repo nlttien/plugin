@@ -159,18 +159,23 @@ public class PurchaseExecutor
         try
         {
             if (gc == null) return;
-            var winRect = gc.Window.GetWindowRectangle();
-            if (winRect.Width <= 0 || winRect.Height <= 0) return;
+            // Sử dụng GetWindowRectangleReal() để lấy chính xác Client Area (TỰ ĐỘNG TRỪ TITLE BAR VÀ VIỀN CỬA SỔ)
+            var realWinRect = gc.Window.GetWindowRectangleReal();
+            if (realWinRect.Width <= 0 || realWinRect.Height <= 0)
+            {
+                realWinRect = gc.Window.GetWindowRectangle();
+            }
+            if (realWinRect.Width <= 0 || realWinRect.Height <= 0) return;
 
-            var scaleX = winRect.Width / 1920f;
-            var scaleY = winRect.Height / 1080f;
+            var scaleX = realWinRect.Width / 1920f;
+            var scaleY = realWinRect.Height / 1080f;
             var customX = settings?.OkButtonX?.Value ?? 774;
             var customY = settings?.OkButtonY?.Value ?? 551;
 
-            // Tọa độ ĐỒNG BỘ 100% VỚI KHUNG NGẮM TRỰC QUAN TRÊN MÀN HÌNH
-            var targetPos = new Vector2(winRect.Left + customX * scaleX, winRect.Top + customY * scaleY);
+            // Tọa độ ĐỒNG BỘ 100% VỚI KHUNG NGẮM TRỰC QUAN TRÊN MÀN HÌNH (ĐÃ TRỪ TIÊU ĐỀ TITLE BAR)
+            var targetPos = new Vector2(realWinRect.Left + customX * scaleX, realWinRect.Top + customY * scaleY);
 
-            // 1. Di chuyển chuột thẳng đến tâm khung ngắm, ĐỢI GAME NHẬN HOVER (100ms) rồi CLICK
+            // 1. Di chuyển chuột thẳng đến tâm khung ngắm, ĐỢI GAME NHẬN HOVER (110ms) rồi CLICK
             MouseHelper.LeftClickAt(targetPos, 110, 45);
             Thread.Sleep(50);
 
@@ -182,7 +187,7 @@ public class PurchaseExecutor
             Input.KeyPress(Keys.Space);
             Input.KeyPress(Keys.Enter);
 
-            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại khung ngắm: ({targetPos.X:F0}, {targetPos.Y:F0})");
+            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
         }
         catch (Exception ex)
         {

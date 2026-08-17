@@ -243,13 +243,18 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             // 3. Ve khung can chinh vi tri bam nut OK khi mo Shop
             if (isShopOpen && Settings != null)
             {
-                var winRect = GameController.Window.GetWindowRectangle();
-                if (winRect.Width > 0 && winRect.Height > 0)
+                var realWinRect = GameController.Window.GetWindowRectangleReal();
+                if (realWinRect.Width <= 0 || realWinRect.Height <= 0)
                 {
-                    var scaleX = winRect.Width / 1920f;
-                    var scaleY = winRect.Height / 1080f;
-                    var targetX = winRect.Left + Settings.OkButtonX.Value * scaleX;
-                    var targetY = winRect.Top + Settings.OkButtonY.Value * scaleY;
+                    realWinRect = GameController.Window.GetWindowRectangle();
+                }
+
+                if (realWinRect.Width > 0 && realWinRect.Height > 0)
+                {
+                    var scaleX = realWinRect.Width / 1920f;
+                    var scaleY = realWinRect.Height / 1080f;
+                    var targetX = Settings.OkButtonX.Value * scaleX;
+                    var targetY = Settings.OkButtonY.Value * scaleY;
 
                     var boxRect = new RectangleF(targetX - 55, targetY - 16, 110, 32);
                     Graphics.DrawFrame(boxRect, Color.OrangeRed, 2);
