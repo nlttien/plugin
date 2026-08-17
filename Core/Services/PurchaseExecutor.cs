@@ -121,14 +121,21 @@ public class PurchaseExecutor
 
                     // 3. Thực hiện thao tác Ctrl + Left Click để mua
                     MouseHelper.CtrlLeftClick();
-                    yield return new WaitTime(120);
+                    yield return new WaitTime(100);
 
-                    // 4. CHỈ BẤM NÚT [ OK ] KHI VÀ CHỈ KHI HỘP THOẠI CẢNH BÁO GIÁ XUẤT HIỆN
+                    // 4. CHỈ BẤM NÚT [ OK ] ĐÚNG 1 LẦN DUY NHẤT KHI XUẤT HIỆN HỘP THOẠI
                     if (IsPriceDifferenceModalOpen(_gc))
                     {
-                        LogHelper.Info("Phát hiện hộp thoại cảnh báo giá! Đang tự động bấm [ OK ]...");
+                        LogHelper.Info("Phát hiện hộp thoại cảnh báo giá! Bấm [ OK ] 1 lần duy nhất...");
                         HandlePriceDifferenceModal(_gc, _settings);
-                        yield return new WaitTime(120);
+                        
+                        // Đợi hộp thoại đóng hoàn toàn (tối đa 300ms)
+                        var waitCount = 0;
+                        while (IsPriceDifferenceModalOpen(_gc) && waitCount < 6)
+                        {
+                            yield return new WaitTime(50);
+                            waitCount++;
+                        }
                     }
 
                     totalPurchasedCount++;
@@ -206,19 +213,10 @@ public class PurchaseExecutor
 
             var targetPos = new Vector2(realWinRect.Left + customX * scaleX, realWinRect.Top + customY * scaleY);
 
-            // 1. Di chuyển chuột thẳng đến tâm nút [ OK ], ĐỢI GAME NHẬN HOVER (110ms) rồi CLICK
-            MouseHelper.LeftClickAt(targetPos, 110, 45);
-            Thread.Sleep(50);
+            // BẤM ĐÚNG 1 LẦN DUY NHẤT VÀO TÂM NÚT [ OK ] (ĐỢI 80ms ĐỂ HOVER RỒI CLICK)
+            MouseHelper.LeftClickAt(targetPos, 80, 40);
 
-            // 2. Click bồi lần 2 để chắc chắn 100% ăn lệnh
-            MouseHelper.LeftClickAt(targetPos, 40, 45);
-            Thread.Sleep(30);
-
-            // 3. Gửi phím hỗ trợ
-            Input.KeyPress(Keys.Space);
-            Input.KeyPress(Keys.Enter);
-
-            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
+            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] 1 lần tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
         }
         catch (Exception ex)
         {
@@ -236,7 +234,7 @@ public class PurchaseExecutor
         if (txt.Contains("price differs") || txt.Contains("initially travelled") || txt.Contains("differs from") || txt.Contains("this item's price") ||
             txtNoTags.Contains("price differs") || txtNoTags.Contains("initially travelled") || txtNoTags.Contains("differs from") || txtNoTags.Contains("this item's price"))
         {
-            return root;
+            return root.Parent ?? root;
         }
 
         if (root.Children != null)
