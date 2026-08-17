@@ -17,10 +17,12 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 {
     private ShopAdapterFactory _adapterFactory = new ShopAdapterFactory();
     private PurchaseExecutor? _purchaseExecutor;
+    private Coroutine? _currentCoroutine;
     private bool _wasShopOpenLastFrame;
     private List<ShopItemInfo> _cachedMatchingItems = new List<ShopItemInfo>();
     private List<ShopItemInfo> _cachedAllItems = new List<ShopItemInfo>();
     private DateTime _lastScanTime = DateTime.MinValue;
+    private DateTime _lastAutoBuyTriggerTime = DateTime.MinValue;
     private bool _isShopOpenCached;
 
     public override bool Initialise()
@@ -81,11 +83,22 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             }
 
             // 2. Tu dong kich hoat mua ngay khi mo Shop (Khong can bam F6)
-            if (isShopOpen && Settings?.HighlightOnlyMode?.Value != true && _purchaseExecutor != null && !_purchaseExecutor.IsRunning)
+            if (isShopOpen && Settings?.HighlightOnlyMode?.Value != true)
             {
-                if (!_wasShopOpenLastFrame || (_cachedMatchingItems.Count > 0 && (DateTime.Now - _lastScanTime).TotalMilliseconds > 500))
+                var isCoroutineRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
+                if (!isCoroutineRunning)
                 {
-                    StartPurchaseCoroutine();
+                    // Khi vua mo Shop hoac khi co item khop dieu kien
+                    if (!_wasShopOpenLastFrame && (DateTime.Now - _lastAutoBuyTriggerTime).TotalSeconds > 1.0)
+                    {
+                        _lastAutoBuyTriggerTime = DateTime.Now;
+                        StartPurchaseCoroutine();
+                    }
+                    else if (_cachedMatchingItems.Count > 0 && (DateTime.Now - _lastAutoBuyTriggerTime).TotalSeconds > 1.5)
+                    {
+                        _lastAutoBuyTriggerTime = DateTime.Now;
+                        StartPurchaseCoroutine();
+                    }
                 }
             }
 
@@ -180,62 +193,46 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     }
                 }
             }
-            else
-            {
-                if (_cachedMatchingItems.Count > 0)
-                {
-                    _cachedMatchingItems.Clear();
-                    _cachedAllItems.Clear();
-                }
-            }
 
-            // 2. Ve bang thong tin trang thai ra ngoai man hinh (Status Overlay Box)
+            // 2. Ve bang thong tin trang thai (Status Overlay Box)
             if (Settings?.ShowStatusBox?.Value == true)
             {
-                DrawStatusOverlayBox(isShopOpen);
+                RenderStatusOverlayBox(isShopOpen);
             }
         }
         catch (Exception ex)
         {
-            LogHelper.Debug($"Loi trong Render(): {ex.Message}");
+            LogHelper.Error("Loi trong Render()", ex);
         }
     }
 
-    private void DrawStatusOverlayBox(bool isShopOpen)
+    private void RenderStatusOverlayBox(bool isShopOpen)
     {
         var boxX = 20f;
-        var boxY = 120f;
-        var boxWidth = 390f;
+        var boxY = 70f;
+        var boxW = 340f;
+        var boxH = isShopOpen ? (110f + Math.Min(_cachedMatchingItems.Count, 3) * 42f) : 70f;
 
-        var matchingCount = _cachedMatchingItems.Count;
-        var totalCount = _cachedAllItems.Count;
+        // Background box
+        Graphics.DrawBox(new RectangleF(boxX, boxY, boxW, boxH), new Color(0, 0, 0, 210));
+        Graphics.DrawFrame(new RectangleF(boxX, boxY, boxW, boxH), Color.Goldenrod, 1);
 
-        // Tinh chieu cao dong dua tren so item tim thay
-        var dynamicHeight = 75f + (matchingCount > 0 ? Math.Min(6, matchingCount) * 44f : 22f);
-        var bgRect = new RectangleF(boxX, boxY, boxWidth, dynamicHeight);
+        // Header Title
+        var title = "=== POE AUTO BUYER (ACTIVE) ===";
+        Graphics.DrawText(title, new Vector2(boxX + 12, boxY + 8), Color.Gold);
 
-        // Nen toi ban trong suot
-        Graphics.DrawBox(bgRect, new Color(15, 15, 20, 225));
-        Graphics.DrawFrame(bgRect, isShopOpen ? Color.LimeGreen : Color.DarkGray, 2);
+        var currentY = boxY + 28;
 
-        // Tieu de
-        var isTimelessMode = Settings?.OnlyBuyTimelessJewels?.Value == true;
-        var titleColor = isShopOpen ? Color.LimeGreen : Color.LightGray;
-        var titleText = isShopOpen 
-            ? (isTimelessMode ? "[ShopAutoBuyer] TIMELESS JEWEL MODE" : "[ShopAutoBuyer] SHOP DANG MO")
-            : "[ShopAutoBuyer] CHO MO SHOP NPC";
-        Graphics.DrawText(titleText, new Vector2(boxX + 12, boxY + 10), titleColor);
-
-        var currentY = boxY + 30;
         if (isShopOpen)
         {
-            var summaryText = $"Tong do trong tab: {totalCount} | Khop bo loc: {matchingCount}";
-            Graphics.DrawText(summaryText, new Vector2(boxX + 12, currentY), Color.White);
+            var detectedText = $"Cua hang: DANG MO | Phat hien: {_cachedMatchingItems.Count} item hop le";
+            Graphics.DrawText(detectedText, new Vector2(boxX + 12, currentY), Color.LimeGreen);
             currentY += 20;
 
-            if (matchingCount > 0)
+            if (_cachedMatchingItems.Count > 0)
             {
-                for (var i = 0; i < Math.Min(6, matchingCount); i++)
+                var displayCount = Math.Min(_cachedMatchingItems.Count, 3);
+                for (var i = 0; i < displayCount; i++)
                 {
                     var item = _cachedMatchingItems[i];
                     var itemName = $"* {item.DisplayName} [O {item.SlotX + 1},{item.SlotY + 1}]";
@@ -249,8 +246,9 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     currentY += 22;
                 }
 
-                var hotkeyName = Settings?.TriggerHotkey?.Value.ToString() ?? "F6";
-                Graphics.DrawText($"Bam [{hotkeyName}] de tu dong mua ngay!", new Vector2(boxX + 12, currentY + 2), Color.Yellow);
+                var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
+                var statusMsg = isRunning ? "Trang thai: >> DANG TU DONG MUA <<..." : "Trang thai: SAN SANG TU DONG MUA (Auto)";
+                Graphics.DrawText(statusMsg, new Vector2(boxX + 12, currentY + 2), isRunning ? Color.LimeGreen : Color.Yellow);
             }
             else
             {
@@ -271,6 +269,9 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             return;
         }
 
+        if (_currentCoroutine != null && !_currentCoroutine.IsDone) return;
+        if (_purchaseExecutor != null && _purchaseExecutor.IsRunning) return;
+
         if (_purchaseExecutor == null && GameController != null && Settings != null)
         {
             _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
@@ -278,11 +279,12 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
         if (_purchaseExecutor != null)
         {
-            ExileCore.Core.ParallelRunner.Run(new Coroutine(
+            _currentCoroutine = new Coroutine(
                 _purchaseExecutor.ExecutePurchaseCoroutine(),
                 this,
                 "ShopAutoBuyer_PurchaseRoutine"
-            ));
+            );
+            Core.ParallelRunner.Run(_currentCoroutine);
         }
     }
 }
