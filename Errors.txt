@@ -1,2 +1,2 @@
 Build failed:
-[8/17/2026 4:19:54 PM, D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\Core\Adapters\Poe1ShopAdapter.cs(16, 32)] CS0535: 'Poe1ShopAdapter' does not implement interface member 'IShopAdapter.AdapterName'
+[8/17/2026 4:21:24 PM, D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\Core\Adapters\Poe1ShopAdapter.cs(400, 62)] CS1061: 'VendorStashTabContainer' does not contain a definition for 'CurrentStashIndex' and no accessible extension method 'CurrentStashIndex' accepting a first argument of type 'VendorStashTabContainer' could be found (are you missing a using directive or an assembly reference?)

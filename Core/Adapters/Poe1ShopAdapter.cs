@@ -397,7 +397,7 @@ public class Poe1ShopAdapter : IShopAdapter
             var purchaseWindow = (ingameUi.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi.PurchaseWindowHideout);
             if (purchaseWindow == null || !purchaseWindow.IsValid || !purchaseWindow.IsVisible) return 0;
 
-            var tabIndex = (int)(purchaseWindow.TabContainer?.CurrentStashIndex ?? 0L);
+            var tabIndex = (int)(purchaseWindow.TabContainer?.IndexVisibleStash ?? 0L);
             return Math.Max(0, tabIndex);
         }
         catch
