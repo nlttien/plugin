@@ -26,6 +26,15 @@ public class ShopAutoBuyerSettings : ISettings
     public HotkeyNode StopHotkey { get; set; } = new HotkeyNode(Keys.F7);
 
     // ==========================================
+    // TOA DO NUT OK (1920x1080)
+    // ==========================================
+    [Menu("Toa Do Nut OK - Truc X (Chuan 1080p: 787)")]
+    public RangeNode<int> OkButtonX { get; set; } = new RangeNode<int>(787, 100, 1920);
+
+    [Menu("Toa Do Nut OK - Truc Y (Chuan 1080p: 545)")]
+    public RangeNode<int> OkButtonY { get; set; } = new RangeNode<int>(545, 100, 1080);
+
+    // ==========================================
     // CAI DAT CHUNG
     // ==========================================
     [Menu("Phien Ban Game (Game Version)")]

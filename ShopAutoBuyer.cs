@@ -120,7 +120,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     var priceDialog = PurchaseExecutor.FindPriceDifferenceDialog(ingameUi);
                     if (priceDialog != null && priceDialog.IsValid && priceDialog.IsVisible)
                     {
-                        PurchaseExecutor.HandlePriceDifferenceModal(GameController);
+                        PurchaseExecutor.HandlePriceDifferenceModal(GameController, Settings);
                     }
                 }
             }

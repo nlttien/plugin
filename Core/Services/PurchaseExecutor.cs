@@ -124,8 +124,8 @@ public class PurchaseExecutor
                     MouseHelper.CtrlLeftClick();
                     yield return new WaitTime(120);
 
-                    // 4. Tự động kiểm tra & CLICK CHÍNH XÁC 100% vào tâm nút [ OK ] (X = 775, Y = 502)
-                    HandlePriceDifferenceModal(_gc);
+                    // 4. Tự động kiểm tra & CLICK CHÍNH XÁC vào tâm nút [ OK ] tại X=787, Y=545
+                    HandlePriceDifferenceModal(_gc, _settings);
                     yield return new WaitTime(100);
 
                     totalPurchasedCount++;
@@ -155,7 +155,7 @@ public class PurchaseExecutor
         }
     }
 
-    public static void HandlePriceDifferenceModal(GameController gc)
+    public static void HandlePriceDifferenceModal(GameController gc, ShopAutoBuyerSettings? settings = null)
     {
         try
         {
@@ -163,44 +163,33 @@ public class PurchaseExecutor
             var winRect = gc.Window.GetWindowRectangle();
             if (winRect.Width <= 0 || winRect.Height <= 0) return;
 
-            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
             var scaleX = winRect.Width / 1920f;
             var scaleY = winRect.Height / 1080f;
 
-            // Tọa độ CHÍNH XÁC 100% TÂM NÚT [ OK ]: X = 775, Y = 502 (Chuẩn 1920x1080)
-            var exactOkPos = new Vector2(winRect.Left + 775f * scaleX, winRect.Top + 502f * scaleY);
+            var customX = settings?.OkButtonX?.Value ?? 787;
+            var customY = settings?.OkButtonY?.Value ?? 545;
 
-            // Nếu tìm thấy Element hộp thoại, căn theo tâm ngang của hộp thoại
-            if (ingameUi != null)
-            {
-                var priceDialog = FindPriceDifferenceDialog(ingameUi);
-                if (priceDialog != null && priceDialog.IsValid && priceDialog.IsVisible)
-                {
-                    var dialogRect = priceDialog.GetClientRect();
-                    if (dialogRect.Width > 150 && dialogRect.Height > 40)
-                    {
-                        exactOkPos = new Vector2(
-                            dialogRect.Center.X,
-                            dialogRect.Top + dialogRect.Height * 0.70f
-                        );
-                    }
-                }
-            }
+            // Tọa độ CHÍNH XÁC 100% CỦA TÂM NÚT [ OK ] ĐO ĐẠC TRÊN SCREENSHOT: (787, 545)
+            var okPos1 = new Vector2(winRect.Left + customX * scaleX, winRect.Top + customY * scaleY);
+            var okPos2 = new Vector2(winRect.Left + 720f * scaleX, winRect.Top + customY * scaleY);
 
-            // 1. Di chuyển chuột thẳng đến tâm nút [ OK ]
-            MouseHelper.MoveMouse(exactOkPos);
-            Thread.Sleep(45);
-
-            // 2. Bấm Click chuột trái 2 lần liên tiếp
+            // 1. Di chuyển chuột thẳng đến tâm nút [ OK ] và Click
+            MouseHelper.MoveMouse(okPos1);
+            Thread.Sleep(35);
             MouseHelper.LeftClick();
-            Thread.Sleep(40);
+            Thread.Sleep(35);
+            MouseHelper.LeftClick();
+
+            // 2. Click thêm điểm 720 (nếu là hộp thoại 2 nút OK - CANCEL)
+            MouseHelper.MoveMouse(okPos2);
+            Thread.Sleep(25);
             MouseHelper.LeftClick();
 
             // 3. Gửi phím Space và Enter để xác nhận
             Input.KeyPress(Keys.Space);
             Input.KeyPress(Keys.Enter);
 
-            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại tâm nút ({exactOkPos.X:F0}, {exactOkPos.Y:F0})");
+            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại tọa độ chuẩn: ({okPos1.X:F0}, {okPos1.Y:F0})");
         }
         catch (Exception ex)
         {
