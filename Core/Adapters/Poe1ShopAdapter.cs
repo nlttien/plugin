@@ -138,7 +138,7 @@ public class Poe1ShopAdapter : IShopAdapter
                         itemInfo.Quality = qualityComp.ItemQuality;
                     }
 
-                    // Parse item cost from invItem, ToolTip and children
+                    // Parse item cost
                     ParseCost(invItem, itemInfo);
                 }
 
@@ -168,11 +168,20 @@ public class Poe1ShopAdapter : IShopAdapter
             return;
         }
 
-        // 2. Loại trừ Cluster Jewel hoặc đồ khác
-        if (path.Contains("Large", StringComparison.OrdinalIgnoreCase) ||
+        // 2. LOẠI TRỪ 100% CÁC TRANG BỊ KHÔNG PHẢI JEWEL (Amulet, Ring, Belt, Armour, Weapon, Flask, v.v.)
+        if (path.Contains("Amulet", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("Ring", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("Belt", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("Armour", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("Weapon", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("Flask", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("Large", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("Medium", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("Small", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("Cluster", StringComparison.OrdinalIgnoreCase) ||
+            baseName.Contains("Amulet", StringComparison.OrdinalIgnoreCase) ||
+            baseName.Contains("Ring", StringComparison.OrdinalIgnoreCase) ||
+            baseName.Contains("Belt", StringComparison.OrdinalIgnoreCase) ||
             baseName.Contains("Cluster", StringComparison.OrdinalIgnoreCase) ||
             name.Contains("Voices", StringComparison.OrdinalIgnoreCase) ||
             name.Contains("Megalomaniac", StringComparison.OrdinalIgnoreCase))
@@ -181,20 +190,20 @@ public class Poe1ShopAdapter : IShopAdapter
             return;
         }
 
-        // 3. STRICT MATCH: Thuộc 1 trong 5 loại Timeless Jewel chuẩn
-        var isExactTimeless = name.Equals("Brutal Restraint", StringComparison.OrdinalIgnoreCase) ||
-                              name.Equals("Glorious Vanity", StringComparison.OrdinalIgnoreCase) ||
-                              name.Equals("Lethal Pride", StringComparison.OrdinalIgnoreCase) ||
-                              name.Equals("Militant Faith", StringComparison.OrdinalIgnoreCase) ||
-                              name.Equals("Elegant Hubris", StringComparison.OrdinalIgnoreCase) ||
-                              baseName.Equals("Timeless Jewel", StringComparison.OrdinalIgnoreCase) ||
-                              path.Contains("JewelPassiveTreeExpansionMaraketh", StringComparison.OrdinalIgnoreCase) ||
-                              path.Contains("JewelPassiveTreeExpansionVaal", StringComparison.OrdinalIgnoreCase) ||
-                              path.Contains("JewelPassiveTreeExpansionKarui", StringComparison.OrdinalIgnoreCase) ||
-                              path.Contains("JewelPassiveTreeExpansionTemplar", StringComparison.OrdinalIgnoreCase) ||
-                              path.Contains("JewelPassiveTreeExpansionEternalEmpire", StringComparison.OrdinalIgnoreCase);
+        // 3. STRICT MATCH: Bắt buộc phải là 1 trong 5 loại Timeless Jewel chuẩn
+        var isExactName = name.Equals("Brutal Restraint", StringComparison.OrdinalIgnoreCase) ||
+                          name.Equals("Glorious Vanity", StringComparison.OrdinalIgnoreCase) ||
+                          name.Equals("Lethal Pride", StringComparison.OrdinalIgnoreCase) ||
+                          name.Equals("Militant Faith", StringComparison.OrdinalIgnoreCase) ||
+                          name.Equals("Elegant Hubris", StringComparison.OrdinalIgnoreCase);
 
-        if (!isExactTimeless)
+        var isExactPath = path.Contains("JewelPassiveTreeExpansionMaraketh", StringComparison.OrdinalIgnoreCase) ||
+                          path.Contains("JewelPassiveTreeExpansionVaal", StringComparison.OrdinalIgnoreCase) ||
+                          path.Contains("JewelPassiveTreeExpansionKarui", StringComparison.OrdinalIgnoreCase) ||
+                          path.Contains("JewelPassiveTreeExpansionTemplar", StringComparison.OrdinalIgnoreCase) ||
+                          path.Contains("JewelPassiveTreeExpansionEternalEmpire", StringComparison.OrdinalIgnoreCase);
+
+        if (!isExactName && !isExactPath)
         {
             itemInfo.IsTimelessJewel = false;
             return;
@@ -229,8 +238,6 @@ public class Poe1ShopAdapter : IShopAdapter
         itemInfo.ExplicitMods = statsList;
 
         // 4. Kiểm tra Historic mod / Seed
-        var hasHistoricOrTimelessMod = false;
-
         foreach (var stat in statsList)
         {
             if (string.IsNullOrWhiteSpace(stat)) continue;
@@ -242,7 +249,6 @@ public class Poe1ShopAdapter : IShopAdapter
                 if (seedVal > 0)
                 {
                     itemInfo.TimelessSeed = seedVal;
-                    hasHistoricOrTimelessMod = true;
                 }
             }
 
@@ -267,15 +273,7 @@ public class Poe1ShopAdapter : IShopAdapter
                 if (leaderMatch.Success)
                 {
                     itemInfo.TimelessLeader = leaderMatch.Groups[1].Value;
-                    hasHistoricOrTimelessMod = true;
                 }
-            }
-
-            if (stat.Contains("Historic", StringComparison.OrdinalIgnoreCase) ||
-                stat.Contains("Conquered", StringComparison.OrdinalIgnoreCase) ||
-                stat.Contains("Passives in radius", StringComparison.OrdinalIgnoreCase))
-            {
-                hasHistoricOrTimelessMod = true;
             }
         }
 
@@ -289,7 +287,7 @@ public class Poe1ShopAdapter : IShopAdapter
             else if (name.Contains("Elegant Hubris", StringComparison.OrdinalIgnoreCase)) itemInfo.TimelessLeader = "Cadiro/Caspiro/Victario";
         }
 
-        itemInfo.IsTimelessJewel = isExactTimeless || hasHistoricOrTimelessMod;
+        itemInfo.IsTimelessJewel = true;
     }
 
     private static void ParseCost(NormalInventoryItem invItem, ShopItemInfo itemInfo)

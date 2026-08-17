@@ -118,15 +118,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             var isShopOpen = adapter.IsShopOpen(GameController);
             _isShopOpenCached = isShopOpen;
 
-            // 3. Tu dong tat hop thoai canh bao gia [ OK ] neu dang o trang thai cho (coroutine khong chay)
             var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
-            if (isShopOpen && !_isPausedByUser && !isRunning)
-            {
-                if (PurchaseExecutor.IsPriceDifferenceModalOpen(GameController))
-                {
-                    PurchaseExecutor.HandlePriceDifferenceModal(GameController, Settings);
-                }
-            }
 
             // 4. TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam bat ky nut nao
             if (isShopOpen && !_isPausedByUser && Settings?.HighlightOnlyMode?.Value != true)

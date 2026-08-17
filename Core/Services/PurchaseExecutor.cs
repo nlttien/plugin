@@ -109,6 +109,12 @@ public class PurchaseExecutor
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
+                    if (_settings.OnlyBuyTimelessJewels?.Value == true && !item.IsTimelessJewel)
+                    {
+                        LogHelper.Warn($"[BỎ QUA] {item.DisplayName} không phải Timeless Jewel!");
+                        continue;
+                    }
+
                     // 1. Kiểm tra ô trống hành trang
                     if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height))
                     {
@@ -299,6 +305,9 @@ public class PurchaseExecutor
 
             // BẤM ĐÚNG 1 LẦN DUY NHẤT VÀO TÂM NÚT [ OK ] (ĐỢI 100ms ĐỂ HOVER RỒI CLICK)
             MouseHelper.LeftClickAt(targetPos, 100, 45);
+
+            // DI CHUYỂN CHUỘT RA VÙNG AN TOÀN TRÁNH HOVER VÀO Ô ĐỒ PHÍA DƯỚI
+            MouseHelper.MoveMouse(new Vector2(realWinRect.Left + 150, realWinRect.Top + 150));
 
             LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
         }
