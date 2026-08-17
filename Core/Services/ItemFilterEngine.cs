@@ -15,7 +15,7 @@ public static class ItemFilterEngine
 
         var name = item.Name ?? string.Empty;
 
-        // 1. Filter by Jewel Type
+        // 1. Filter by Jewel Type (5 Loai Timeless Chuan)
         if (name.Contains("Brutal Restraint", StringComparison.OrdinalIgnoreCase) && settings.BuyBrutalRestraint?.Value == false)
             return false;
         if (name.Contains("Glorious Vanity", StringComparison.OrdinalIgnoreCase) && settings.BuyGloriousVanity?.Value == false)
@@ -47,40 +47,49 @@ public static class ItemFilterEngine
             if (!matchedSeed) return false;
         }
 
-        // 4. Check Price Limits (10 to 50 Chaos Orb, Divine limits, Gold limits)
-        if (item.Cost != null)
+        // 4. KIỂM TRA BẮT BUỘC VỀ GIÁ: CHỈ MUA & HIGHLIGHT XANH KHI GIÁ <= 50 CHAOS (VÀ >= 10 CHAOS)
+        if (item.Cost == null || string.IsNullOrWhiteSpace(item.Cost.CurrencyName))
         {
-            var curr = item.Cost.CurrencyName ?? string.Empty;
+            // Không có giá hoặc không phải đơn vị tiền hợp lệ -> Không highlight / Không mua
+            return false;
+        }
 
-            if (curr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
-            {
-                if (settings.BuyChaosPrice?.Value == false) return false;
+        var curr = item.Cost.CurrencyName ?? string.Empty;
 
-                var minChaos = settings.MinChaosPrice?.Value ?? 10;
-                var maxChaos = settings.MaxChaosPrice?.Value ?? 50;
+        if (curr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
+        {
+            if (settings.BuyChaosPrice?.Value == false) return false;
 
-                if (item.Cost.Amount < minChaos || (maxChaos > 0 && item.Cost.Amount > maxChaos))
-                {
-                    return false;
-                }
-            }
-            else if (curr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
-            {
-                if (settings.BuyDivinePrice?.Value == false) return false;
+            var minChaos = settings.MinChaosPrice?.Value ?? 10;
+            var maxChaos = settings.MaxChaosPrice?.Value ?? 50;
 
-                var maxDivine = settings.MaxDivinePrice?.Value ?? 0;
-                if (maxDivine > 0 && item.Cost.Amount > maxDivine)
-                {
-                    return false;
-                }
-            }
-
-            // Check Gold Limit
-            var maxGold = settings.MaxGoldPrice?.Value ?? 0;
-            if (maxGold > 0 && item.Cost.GoldAmount > maxGold)
+            // Bắt buộc giá phải từ 10 đến 50 Chaos
+            if (item.Cost.Amount < minChaos || (maxChaos > 0 && item.Cost.Amount > maxChaos))
             {
                 return false;
             }
+        }
+        else if (curr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
+        {
+            if (settings.BuyDivinePrice?.Value == false) return false;
+
+            var maxDivine = settings.MaxDivinePrice?.Value ?? 0;
+            if (maxDivine <= 0 || item.Cost.Amount > maxDivine)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // Bỏ qua các loại tiền tệ khác
+            return false;
+        }
+
+        // Check Gold Limit nếu có thiết lập
+        var maxGold = settings.MaxGoldPrice?.Value ?? 0;
+        if (maxGold > 0 && item.Cost.GoldAmount > maxGold)
+        {
+            return false;
         }
 
         return true;
@@ -129,31 +138,27 @@ public static class ItemFilterEngine
             return false;
         }
 
-        // 6. Check RGB (Chromatic recipe)
+        // 6. Check RGB (Chromatic)
         if (rule.RequireRgbSockets && !item.IsRgb)
         {
             return false;
         }
 
-        // 7. Check Base Name Keywords
+        // 7. Base Name / Full Name Matching
         if (!string.IsNullOrWhiteSpace(rule.BaseNameFilter))
         {
-            var keywords = rule.BaseNameFilter.Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+            var filters = rule.BaseNameFilter.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            var itemName = item.DisplayName ?? string.Empty;
             var itemBase = item.BaseName ?? string.Empty;
-            var itemName = item.Name ?? string.Empty;
-            var itemPath = item.ItemPath ?? string.Empty;
 
-            var matchesKeyword = keywords.Any(k =>
+            var matches = filters.Any(f =>
             {
-                var trimmed = k.Trim();
-                if (string.IsNullOrEmpty(trimmed)) return false;
-
-                return itemBase.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ||
-                       itemName.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ||
-                       itemPath.Contains(trimmed, StringComparison.OrdinalIgnoreCase);
+                var trimmed = f.Trim();
+                return itemName.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ||
+                       itemBase.Contains(trimmed, StringComparison.OrdinalIgnoreCase);
             });
 
-            if (!matchesKeyword) return false;
+            if (!matches) return false;
         }
 
         return true;
@@ -161,7 +166,7 @@ public static class ItemFilterEngine
 
     public static bool MatchesAnyRule(ShopItemInfo item, IEnumerable<FilterRule> rules)
     {
-        if (rules == null) return false;
-        return rules.Any(r => MatchesRule(item, r));
+        if (item == null || rules == null) return false;
+        return rules.Any(rule => MatchesRule(item, rule));
     }
 }
