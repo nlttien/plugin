@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using ExileCore;
@@ -119,6 +120,19 @@ public class PurchaseExecutor
                     MouseHelper.MoveMouseWithJitter(item.ScreenRect);
                     yield return new WaitTime(MouseHelper.GetRandomDelay(_settings.MinDelayMs.Value, _settings.MaxDelayMs.Value));
 
+                    // 2.5 KIỂM TRA LẠI GIÁ TRỰC TIẾP TỪ TOOLTIP SAU KHI RÊ CHUỘT
+                    var liveCost = ReadLiveHoveredCost(_gc);
+                    if (liveCost != null)
+                    {
+                        item.Cost = liveCost;
+                        item.CostString = $"{liveCost.Amount} {liveCost.CurrencyName}";
+                        if (!ItemFilterEngine.MatchesTimelessSettings(item, _settings))
+                        {
+                            LogHelper.Warn($"[BỎ QUA KHÔNG MUA] {item.DisplayName} vì giá không hợp lệ: {liveCost.Amount} {liveCost.CurrencyName}");
+                            continue;
+                        }
+                    }
+
                     // 3. Thực hiện thao tác Ctrl + Left Click để mua
                     MouseHelper.CtrlLeftClick();
 
@@ -173,6 +187,52 @@ public class PurchaseExecutor
             }
             catch { }
         }
+    }
+
+    public static CurrencyCost? ReadLiveHoveredCost(GameController gc)
+    {
+        try
+        {
+            if (gc == null) return null;
+            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
+            if (ingameUi == null) return null;
+
+            var costParts = new List<string>();
+
+            if (ingameUi.ItemOnHover != null && ingameUi.ItemOnHover.IsValid)
+            {
+                Poe1ShopAdapter.ExtractCostTextRecursive(ingameUi.ItemOnHover, costParts, 0);
+                if (ingameUi.ItemOnHover.ToolTip != null && ingameUi.ItemOnHover.ToolTip.IsValid)
+                {
+                    Poe1ShopAdapter.ExtractCostTextRecursive(ingameUi.ItemOnHover.ToolTip, costParts, 0);
+                }
+            }
+
+            if (costParts.Count > 0)
+            {
+                var fullCostStr = string.Join(", ", costParts);
+                var cost = new CurrencyCost();
+
+                var divMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Divine", RegexOptions.IgnoreCase);
+                if (divMatch.Success && int.TryParse(divMatch.Groups[1].Value, out var divAmt))
+                {
+                    cost.CurrencyName = "Divine Orb";
+                    cost.Amount = divAmt;
+                    return cost;
+                }
+
+                var chaosMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
+                if (chaosMatch.Success && int.TryParse(chaosMatch.Groups[1].Value, out var chaosAmt))
+                {
+                    cost.CurrencyName = "Chaos Orb";
+                    cost.Amount = chaosAmt;
+                    return cost;
+                }
+            }
+        }
+        catch { }
+
+        return null;
     }
 
     public static bool IsPriceDifferenceModalOpen(GameController gc)

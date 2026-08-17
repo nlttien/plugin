@@ -138,7 +138,7 @@ public class Poe1ShopAdapter : IShopAdapter
                         itemInfo.Quality = qualityComp.ItemQuality;
                     }
 
-                    // Parse item cost recursively from all children
+                    // Parse item cost from invItem, ToolTip and children
                     ParseCost(invItem, itemInfo);
                 }
 
@@ -299,6 +299,11 @@ public class Poe1ShopAdapter : IShopAdapter
             var costParts = new List<string>();
             ExtractCostTextRecursive(invItem, costParts, 0);
 
+            if (invItem.ToolTip != null && invItem.ToolTip.IsValid)
+            {
+                ExtractCostTextRecursive(invItem.ToolTip, costParts, 0);
+            }
+
             if (costParts.Count > 0)
             {
                 var fullCostStr = string.Join(", ", costParts);
@@ -306,23 +311,25 @@ public class Poe1ShopAdapter : IShopAdapter
 
                 if (itemInfo.Cost == null) itemInfo.Cost = new CurrencyCost();
 
-                // Parse Chaos Orb amount (e.g. "20x Chaos Orb", "20 Chaos", "20x Chaos")
-                var chaosMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
-                if (chaosMatch.Success && int.TryParse(chaosMatch.Groups[1].Value, out var chaosAmt))
-                {
-                    itemInfo.Cost.CurrencyName = "Chaos Orb";
-                    itemInfo.Cost.Amount = chaosAmt;
-                }
-
-                // Parse Divine Orb amount (e.g. "1x Divine Orb", "1 Divine")
+                // Parse Divine Orb amount FIRST (e.g. "5x Divine Orb", "1 Divine")
                 var divineMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Divine", RegexOptions.IgnoreCase);
                 if (divineMatch.Success && int.TryParse(divineMatch.Groups[1].Value, out var divAmt))
                 {
                     itemInfo.Cost.CurrencyName = "Divine Orb";
                     itemInfo.Cost.Amount = divAmt;
                 }
+                else
+                {
+                    // Parse Chaos Orb amount (e.g. "20x Chaos Orb", "20 Chaos")
+                    var chaosMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
+                    if (chaosMatch.Success && int.TryParse(chaosMatch.Groups[1].Value, out var chaosAmt))
+                    {
+                        itemInfo.Cost.CurrencyName = "Chaos Orb";
+                        itemInfo.Cost.Amount = chaosAmt;
+                    }
+                }
 
-                // Parse Gold amount (e.g. "10,920 Gold", "10920 Gold")
+                // Parse Gold amount (e.g. "10,920 Gold", "6,660 Gold")
                 var goldMatch = Regex.Match(fullCostStr, @"([\d,]+)\s*Gold", RegexOptions.IgnoreCase);
                 if (goldMatch.Success)
                 {
@@ -337,9 +344,9 @@ public class Poe1ShopAdapter : IShopAdapter
         catch { }
     }
 
-    private static void ExtractCostTextRecursive(Element? element, List<string> costParts, int depth)
+    public static void ExtractCostTextRecursive(Element? element, List<string> costParts, int depth)
     {
-        if (element == null || !element.IsValid || depth > 5) return;
+        if (element == null || !element.IsValid || depth > 8) return;
 
         var txt = (element.Text ?? string.Empty).Trim();
         var txtNoTags = (element.TextNoTags ?? string.Empty).Trim();

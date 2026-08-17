@@ -47,12 +47,32 @@ public static class ItemFilterEngine
             if (!matchedSeed) return false;
         }
 
-        // 4. KIỂM TRA GIÁ: CHỈ MUA & HIGHLIGHT KHI GIÁ <= 50 CHAOS (10 - 50 CHAOS)
+        // 4. KIỂM TRA CHẶT CHẼ ĐƠN VỊ TIỀN VÀ GIÁ (TỪ CHỐI 100% DIVINE)
+        if (!string.IsNullOrEmpty(item.CostString))
+        {
+            if (item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase) && settings.BuyDivinePrice?.Value != true)
+            {
+                return false;
+            }
+        }
+
         if (item.Cost != null && !string.IsNullOrWhiteSpace(item.Cost.CurrencyName))
         {
             var curr = item.Cost.CurrencyName;
 
-            if (curr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
+            // NẾU LÀ DIVINE ORB
+            if (curr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
+            {
+                if (settings.BuyDivinePrice?.Value != true) return false;
+
+                var maxDivine = settings.MaxDivinePrice?.Value ?? 0;
+                if (maxDivine <= 0 || item.Cost.Amount > maxDivine)
+                {
+                    return false;
+                }
+            }
+            // NẾU LÀ CHAOS ORB
+            else if (curr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
             {
                 if (settings.BuyChaosPrice?.Value == false) return false;
 
@@ -65,32 +85,18 @@ public static class ItemFilterEngine
                     return false;
                 }
             }
-            else if (curr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
-            {
-                if (settings.BuyDivinePrice?.Value != true) return false;
-
-                var maxDivine = settings.MaxDivinePrice?.Value ?? 0;
-                if (maxDivine <= 0 || item.Cost.Amount > maxDivine)
-                {
-                    return false;
-                }
-            }
             else
             {
-                // Bỏ qua các loại tiền tệ khác không phải Chaos/Divine
+                // Bỏ qua các loại tiền tệ khác
                 return false;
             }
 
-            // Check Gold Limit nếu có thiết lập (chỉ chặn khi MaxGoldPrice > 0)
+            // Check Gold Limit nếu có thiết lập
             var maxGold = settings.MaxGoldPrice?.Value ?? 0;
             if (maxGold > 0 && item.Cost.GoldAmount > maxGold)
             {
                 return false;
             }
-        }
-        else if (!string.IsNullOrEmpty(item.CostString) && item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase))
-        {
-            if (settings.BuyDivinePrice?.Value != true) return false;
         }
 
         return true;
