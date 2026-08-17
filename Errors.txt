@@ -1,2 +1,2 @@
 Build failed:
-[8/17/2026 3:13:45 PM, D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\Core\Services\PurchaseExecutor.cs(173, 39)] CS1061: 'IngameUIElements' does not contain a definition for 'TwoButtonWindow' and no accessible extension method 'TwoButtonWindow' accepting a first argument of type 'IngameUIElements' could be found (are you missing a using directive or an assembly reference?)
+[8/17/2026 3:50:43 PM, D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\ShopAutoBuyer.cs(139, 21)] CS0136: A local or parameter named 'isRunning' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter
