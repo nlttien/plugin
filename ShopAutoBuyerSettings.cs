@@ -28,11 +28,11 @@ public class ShopAutoBuyerSettings : ISettings
     // ==========================================
     // TOA DO NUT OK (1920x1080)
     // ==========================================
-    [Menu("Toa Do Nut OK - Truc X (Chuan 1080p: 745)")]
-    public RangeNode<int> OkButtonX { get; set; } = new RangeNode<int>(745, 100, 1920);
+    [Menu("Toa Do Nut OK - Truc X (Chuan 1080p: 750)")]
+    public RangeNode<int> OkButtonX { get; set; } = new RangeNode<int>(750, 100, 1920);
 
-    [Menu("Toa Do Nut OK - Truc Y (Chuan 1080p: 568)")]
-    public RangeNode<int> OkButtonY { get; set; } = new RangeNode<int>(568, 100, 1080);
+    [Menu("Toa Do Nut OK - Truc Y (Chuan 1080p: 575)")]
+    public RangeNode<int> OkButtonY { get; set; } = new RangeNode<int>(575, 100, 1080);
 
     // ==========================================
     // CAI DAT CHUNG
