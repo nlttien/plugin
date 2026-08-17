@@ -377,8 +377,13 @@ public class Poe1ShopAdapter : IShopAdapter
             var purchaseWindow = (ingameUi.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi.PurchaseWindowHideout);
             if (purchaseWindow == null || !purchaseWindow.IsValid || !purchaseWindow.IsVisible) return 1;
 
-            var tabCount = purchaseWindow.TabContainer?.TotalStashes ?? 0L;
-            return tabCount > 0 ? (int)tabCount : 1;
+            var tabList = purchaseWindow.TabContainer?.TabSwitchBar;
+            if (tabList != null && tabList.IsValid && tabList.Children != null && tabList.Children.Count > 0)
+            {
+                return tabList.Children.Count;
+            }
+
+            return 1;
         }
         catch
         {
@@ -388,22 +393,7 @@ public class Poe1ShopAdapter : IShopAdapter
 
     public int GetCurrentTabIndex(GameController gc)
     {
-        try
-        {
-            if (gc == null) return 0;
-            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
-            if (ingameUi == null) return 0;
-
-            var purchaseWindow = (ingameUi.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi.PurchaseWindowHideout);
-            if (purchaseWindow == null || !purchaseWindow.IsValid || !purchaseWindow.IsVisible) return 0;
-
-            var tabIndex = (int)(purchaseWindow.TabContainer?.IndexVisibleStash ?? 0L);
-            return Math.Max(0, tabIndex);
-        }
-        catch
-        {
-            return 0;
-        }
+        return 0;
     }
 
     public bool SwitchToTab(GameController gc, int tabIndex)
