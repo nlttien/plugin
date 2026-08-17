@@ -16,7 +16,7 @@ public class ShopAutoBuyerSettings : ISettings
     // ==========================================
     // KHU VUC NUT DUNG / TAM DUNG (STOP / PAUSE)
     // ==========================================
-    [Menu("TAM DUNG TOAN BO (PAUSE / STOP)", "Tick vao de tam dung toan bo he thong tu dong mua va web trade")]
+    [Menu("TAM DUNG TOAN BO (PAUSE / STOP)")]
     public ToggleNode PauseAutoBuyer { get; set; } = new ToggleNode(false);
 
     [Menu("Nut Dung Khan Cap (Emergency STOP Button)")]
