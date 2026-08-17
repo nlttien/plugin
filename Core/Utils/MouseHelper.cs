@@ -16,20 +16,20 @@ public static class MouseHelper
         Input.SetCursorPos(target);
     }
 
-    public static void MoveMouseWithJitter(RectangleF rect)
+    /// <summary>
+    /// Di chuyển chuột vào chính giữa tâm ô đồ (hạ thấp xuống một khoảng offsetY để vào giữa biểu tượng ngọc).
+    /// </summary>
+    public static void MoveMouseWithJitter(RectangleF rect, float offsetY = 8f)
     {
-        var paddingX = Math.Max(2f, rect.Width * 0.2f);
-        var paddingY = Math.Max(2f, rect.Height * 0.2f);
+        // Tâm chính xác của ô đồ + độ hạ thấp xuống giữa ô
+        var centerX = rect.Center.X;
+        var centerY = rect.Center.Y + offsetY;
 
-        var minX = rect.Left + paddingX;
-        var maxX = rect.Right - paddingX;
-        var minY = rect.Top + paddingY;
-        var maxY = rect.Bottom - paddingY;
+        // Jitter nhỏ tự nhiên (±2 pixel)
+        var jitterX = (float)(Rnd.NextDouble() * 4.0 - 2.0);
+        var jitterY = (float)(Rnd.NextDouble() * 4.0 - 2.0);
 
-        var targetX = minX + (float)Rnd.NextDouble() * Math.Max(1f, maxX - minX);
-        var targetY = minY + (float)Rnd.NextDouble() * Math.Max(1f, maxY - minY);
-
-        Input.SetCursorPos(new Vector2(targetX, targetY));
+        Input.SetCursorPos(new Vector2(centerX + jitterX, centerY + jitterY));
     }
 
     public static void CtrlLeftClick()
