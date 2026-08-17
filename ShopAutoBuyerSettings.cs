@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Windows.Forms;
+using ExileCore.Shared.Attributes;
 using ExileCore.Shared.Interfaces;
 using ExileCore.Shared.Nodes;
 using SharpDX;
@@ -9,57 +10,114 @@ namespace ShopAutoBuyer;
 
 public class ShopAutoBuyerSettings : ISettings
 {
+    [Menu("Bat Plugin (Enable)")]
     public ToggleNode Enable { get; set; } = new ToggleNode(true);
 
+    // ==========================================
+    // KHU VUC NUT DUNG / TAM DUNG (STOP / PAUSE)
+    // ==========================================
+    [Menu("TAM DUNG TOAN BO (PAUSE / STOP)", "Tick vao de tam dung toan bo he thong tu dong mua va web trade")]
+    public ToggleNode PauseAutoBuyer { get; set; } = new ToggleNode(false);
+
+    [Menu("Nut Dung Khan Cap (Emergency STOP Button)")]
+    public ButtonNode EmergencyStopButton { get; set; } = new ButtonNode();
+
+    [Menu("Phim Tat Dung / Tiep Tuc (Mac dinh F7)")]
+    public HotkeyNode StopHotkey { get; set; } = new HotkeyNode(Keys.F7);
+
+    // ==========================================
+    // CAI DAT CHUNG
+    // ==========================================
+    [Menu("Phien Ban Game (Game Version)")]
     public ListNode GameVersion { get; set; } = new ListNode
     {
         Values = new List<string> { "AutoDetect", "PathOfExile1", "PathOfExile2" },
         Value = "AutoDetect"
     };
 
-    // Hotkeys: F7 de dung / tiep tuc
-    public HotkeyNode StopHotkey { get; set; } = new HotkeyNode(Keys.F7);
-    public HotkeyNode TriggerHotkey { get; set; } = new HotkeyNode(Keys.F6);
-
-    public ToggleNode AutoBuyOnOpen { get; set; } = new ToggleNode(true);
+    [Menu("Quet Tat Ca Cac Tab Trong Shop")]
     public ToggleNode ScanAllTabs { get; set; } = new ToggleNode(true);
+
+    [Menu("Che Do Chi Highlight (Khong Mua)")]
     public ToggleNode HighlightOnlyMode { get; set; } = new ToggleNode(false);
+
+    [Menu("Hien Bang Thong Tin Trang Thai (Overlay Box)")]
     public ToggleNode ShowStatusBox { get; set; } = new ToggleNode(true);
 
+    // ==========================================
     // TIMELESS JEWEL SPECIFIC SETTINGS
+    // ==========================================
+    [Menu("Chi Mua Timeless Jewel (Chuan 5 Loai)")]
     public ToggleNode OnlyBuyTimelessJewels { get; set; } = new ToggleNode(true);
+
+    [Menu("Mua Brutal Restraint")]
     public ToggleNode BuyBrutalRestraint { get; set; } = new ToggleNode(true);
+
+    [Menu("Mua Glorious Vanity")]
     public ToggleNode BuyGloriousVanity { get; set; } = new ToggleNode(true);
+
+    [Menu("Mua Lethal Pride")]
     public ToggleNode BuyLethalPride { get; set; } = new ToggleNode(true);
+
+    [Menu("Mua Militant Faith")]
     public ToggleNode BuyMilitantFaith { get; set; } = new ToggleNode(true);
+
+    [Menu("Mua Elegant Hubris")]
     public ToggleNode BuyElegantHubris { get; set; } = new ToggleNode(true);
 
-    // PRICE FILTERS (10 to 50 Chaos)
+    // ==========================================
+    // BO LOC GIA (PRICE FILTERS 10 - 50 CHAOS)
+    // ==========================================
+    [Menu("Loc Theo Gia Chaos Orb (10-50 Chaos)")]
     public ToggleNode BuyChaosPrice { get; set; } = new ToggleNode(true);
+
+    [Menu("Gia Chaos Toi Thieu (Min Chaos)")]
     public RangeNode<int> MinChaosPrice { get; set; } = new RangeNode<int>(10, 0, 500);
+
+    [Menu("Gia Chaos Toi Da (Max Chaos)")]
     public RangeNode<int> MaxChaosPrice { get; set; } = new RangeNode<int>(50, 0, 500);
 
+    [Menu("Mua Theo Gia Divine Orb")]
     public ToggleNode BuyDivinePrice { get; set; } = new ToggleNode(true);
+
+    [Menu("Gia Divine Toi Da")]
     public RangeNode<int> MaxDivinePrice { get; set; } = new RangeNode<int>(5, 0, 50);
+
+    [Menu("Gia Gold Toi Da")]
     public RangeNode<int> MaxGoldPrice { get; set; } = new RangeNode<int>(50000, 0, 500000);
 
+    [Menu("Loc Theo Ten Tuong (Leader Filter)")]
     public TextNode LeaderFilter { get; set; } = new TextNode("");
+
+    [Menu("Loc Theo Seed Cu The (VD: 3693, 5834)")]
     public TextNode SpecificSeeds { get; set; } = new TextNode("");
 
-    // Visuals & Display Style
+    // ==========================================
+    // HIEN THI & DO TRE
+    // ==========================================
+    [Menu("Kieu Hien Thi Label (Label Mode)")]
     public ListNode LabelMode { get; set; } = new ListNode
     {
         Values = new List<string> { "Compact (Seed Only)", "Full Name", "Border Only" },
         Value = "Compact (Seed Only)"
     };
+
+    [Menu("Mau Khung Highlight")]
     public ColorNode HighlightColor { get; set; } = new ColorNode(Color.LimeGreen);
+
+    [Menu("Do Day Vien Khung")]
     public RangeNode<int> BorderThickness { get; set; } = new RangeNode<int>(2, 1, 8);
 
-    // Delays
+    [Menu("Do Tre Toi Thieu (Min Delay Ms)")]
     public RangeNode<int> MinDelayMs { get; set; } = new RangeNode<int>(100, 30, 1000);
+
+    [Menu("Do Tre Toi Da (Max Delay Ms)")]
     public RangeNode<int> MaxDelayMs { get; set; } = new RangeNode<int>(220, 50, 2000);
 
-    // General Whitelist (Used only when OnlyBuyTimelessJewels is FALSE)
+    // ==========================================
+    // GENERAL WHITELIST (Khi tat OnlyBuyTimelessJewels)
+    // ==========================================
+    [Menu("Danh Sach Ten Item Khac")]
     public TextNode BaseNamesFilter { get; set; } = new TextNode("Amethyst Ring, Heavy Belt, Two-Stone Ring, Uncut");
     public ToggleNode BuyNormal { get; set; } = new ToggleNode(true);
     public ToggleNode BuyMagic { get; set; } = new ToggleNode(true);

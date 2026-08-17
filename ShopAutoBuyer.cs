@@ -57,10 +57,22 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
             }
 
-            // 1. Phim tat DUNG / TIEP TUC (F7)
+            // 1. Nut Dung Khan Cap (Emergency Stop Button trong Menu)
+            if (Settings?.EmergencyStopButton != null && Settings.EmergencyStopButton.PressedOnce())
+            {
+                _isPausedByUser = true;
+                if (Settings.PauseAutoBuyer != null) Settings.PauseAutoBuyer.Value = true;
+                StopAllPurchases();
+                NotifyWebTradeStatus("STOPPED");
+                LogHelper.Warn(">>> [ShopAutoBuyer] NUT DUNG KHAN CAP DA DUOC BAM! (Tam dung he thong) <<<");
+            }
+
+            // 2. Phim tat DUNG / TIEP TUC (F7)
             if (Settings?.StopHotkey != null && Settings.StopHotkey.PressedOnce())
             {
                 _isPausedByUser = !_isPausedByUser;
+                if (Settings.PauseAutoBuyer != null) Settings.PauseAutoBuyer.Value = _isPausedByUser;
+
                 if (_isPausedByUser)
                 {
                     StopAllPurchases();
@@ -74,6 +86,21 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
+            // 3. Dong bo voi Toggle PauseAutoBuyer trong Menu
+            if (Settings?.PauseAutoBuyer != null && Settings.PauseAutoBuyer.Value != _isPausedByUser)
+            {
+                _isPausedByUser = Settings.PauseAutoBuyer.Value;
+                if (_isPausedByUser)
+                {
+                    StopAllPurchases();
+                    NotifyWebTradeStatus("STOPPED");
+                }
+                else
+                {
+                    NotifyWebTradeStatus("WAITING_IN_GAME");
+                }
+            }
+
             var versionStr = Settings?.GameVersion?.Value ?? "AutoDetect";
             var adapter = _adapterFactory.GetAdapter(GameController, versionStr);
             if (adapter == null) return null!;
@@ -81,7 +108,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             var isShopOpen = adapter.IsShopOpen(GameController);
             _isShopOpenCached = isShopOpen;
 
-            // 2. TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam bat ky nut nao
+            // 4. TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam bat ky nut nao
             if (isShopOpen && !_isPausedByUser && Settings?.HighlightOnlyMode?.Value != true)
             {
                 var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
