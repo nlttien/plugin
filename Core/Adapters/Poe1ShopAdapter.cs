@@ -3,29 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using ExileCore;
+using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.Components;
-using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.Shared.Enums;
 using ShopAutoBuyer.Core.Models;
 using ShopAutoBuyer.Core.Utils;
-using SharpDX;
 using Vector2 = System.Numerics.Vector2;
 
 namespace ShopAutoBuyer.Core.Adapters;
 
 public class Poe1ShopAdapter : IShopAdapter
 {
-    public string AdapterName => "Path of Exile 1 Shop Adapter";
-
-    private static readonly string[] TimelessLeaders = new[]
-    {
-        "Asenath", "Balbala", "Nasima",
-        "Doryani", "Xibaqua", "Zerphi",
-        "Kaom", "Rakiata", "Akoya",
-        "Avarius", "Dominus", "Venarius",
-        "Cadiro", "Caspiro", "Victario"
-    };
+    public string GameVersionName => "Path of Exile 1";
 
     public bool IsShopOpen(GameController gc)
     {
@@ -39,25 +29,30 @@ public class Poe1ShopAdapter : IShopAdapter
             if (purchaseWindow != null && purchaseWindow.IsValid && purchaseWindow.IsVisible)
                 return true;
 
-            var purchaseWindowHideout = ingameUi.PurchaseWindowHideout;
-            if (purchaseWindowHideout != null && purchaseWindowHideout.IsValid && purchaseWindowHideout.IsVisible)
+            var purchaseHideout = ingameUi.PurchaseWindowHideout;
+            if (purchaseHideout != null && purchaseHideout.IsValid && purchaseHideout.IsVisible)
                 return true;
 
-            return false;
+            var npcDialog = ingameUi.NpcDialog;
+            if (npcDialog != null && npcDialog.IsValid && npcDialog.IsVisible)
+                return true;
+
+            var sellWindow = ingameUi.SellWindow;
+            if (sellWindow != null && sellWindow.IsValid && sellWindow.IsVisible)
+                return true;
         }
-        catch (Exception ex)
-        {
-            LogHelper.Debug($"Poe1ShopAdapter.IsShopOpen error: {ex.Message}");
-            return false;
-        }
+        catch { }
+
+        return false;
     }
 
     public List<ShopItemInfo> GetAvailableItems(GameController gc)
     {
         var result = new List<ShopItemInfo>();
+        if (gc == null) return result;
+
         try
         {
-            if (gc == null) return result;
             var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
             if (ingameUi == null) return result;
 
@@ -143,12 +138,8 @@ public class Poe1ShopAdapter : IShopAdapter
                         itemInfo.Quality = qualityComp.ItemQuality;
                     }
 
-                    // Try parse cost from item children or tooltip
+                    // Parse item cost recursively from all children
                     ParseCost(invItem, itemInfo);
-                }
-                else
-                {
-                    itemInfo.BaseName = "Unknown Item";
                 }
 
                 result.Add(itemInfo);
@@ -156,7 +147,7 @@ public class Poe1ShopAdapter : IShopAdapter
         }
         catch (Exception ex)
         {
-            LogHelper.Error("Lỗi khi đọc danh sách đồ trong PoE1 Shop", ex);
+            LogHelper.Error("Lỗi khi đọc danh sách đồ trong Shop PoE 1", ex);
         }
 
         return result;
@@ -164,18 +155,20 @@ public class Poe1ShopAdapter : IShopAdapter
 
     private static void CheckAndParseTimelessJewel(ShopItemInfo itemInfo, Mods modsComp)
     {
-        // 1. Timeless Jewels MUST BE UNIQUE
+        if (itemInfo == null || modsComp == null) return;
+
+        var name = itemInfo.Name ?? string.Empty;
+        var baseName = itemInfo.BaseName ?? string.Empty;
+        var path = itemInfo.ItemPath ?? string.Empty;
+
+        // 1. Phải là Unique Rarity
         if (itemInfo.Rarity != ItemRarity.Unique)
         {
             itemInfo.IsTimelessJewel = false;
             return;
         }
 
-        var path = itemInfo.ItemPath ?? string.Empty;
-        var name = itemInfo.Name ?? string.Empty;
-        var baseName = itemInfo.BaseName ?? string.Empty;
-
-        // 2. EXCLUDE Cluster Jewels (Large/Medium/Small Cluster, Voices, Megalomaniac)
+        // 2. Loại trừ Cluster Jewel hoặc đồ khác
         if (path.Contains("Large", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("Medium", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("Small", StringComparison.OrdinalIgnoreCase) ||
@@ -188,7 +181,7 @@ public class Poe1ShopAdapter : IShopAdapter
             return;
         }
 
-        // 3. STRICT MATCH: Must match one of the 5 exact Timeless Jewels
+        // 3. STRICT MATCH: Thuộc 1 trong 5 loại Timeless Jewel chuẩn
         var isExactTimeless = name.Equals("Brutal Restraint", StringComparison.OrdinalIgnoreCase) ||
                               name.Equals("Glorious Vanity", StringComparison.OrdinalIgnoreCase) ||
                               name.Equals("Lethal Pride", StringComparison.OrdinalIgnoreCase) ||
@@ -235,14 +228,14 @@ public class Poe1ShopAdapter : IShopAdapter
 
         itemInfo.ExplicitMods = statsList;
 
-        // 4. Must verify Timeless Jewel keyword / Historic modifier
+        // 4. Kiểm tra Historic mod / Seed
         var hasHistoricOrTimelessMod = false;
 
         foreach (var stat in statsList)
         {
             if (string.IsNullOrWhiteSpace(stat)) continue;
 
-            // Match seed numbers, e.g. "service of 2213 dekhara" or "15045 warriors" or "17814 verses"
+            // Match seed numbers, e.g. "service of 5585 dekhara" or "15045 warriors" or "17814 verses"
             var seedMatch = Regex.Match(stat, @"(?:service of|commissioned|bathed in the blood of|chanted|carved to glorify|of)\s*(\d{2,6})\s*(?:dekhara|warriors|sacrificed|verses|victims|servants)?", RegexOptions.IgnoreCase);
             if (seedMatch.Success && int.TryParse(seedMatch.Groups[1].Value, out var seedVal))
             {
@@ -252,110 +245,125 @@ public class Poe1ShopAdapter : IShopAdapter
                     hasHistoricOrTimelessMod = true;
                 }
             }
-            else
-            {
-                // Fallback 4-5 digit number match
-                var fallbackMatch = Regex.Match(stat, @"\b(\d{3,6})\b");
-                if (fallbackMatch.Success && int.TryParse(fallbackMatch.Groups[1].Value, out var fbSeed))
-                {
-                    if (fbSeed >= 100 && itemInfo.TimelessSeed == 0)
-                    {
-                        itemInfo.TimelessSeed = fbSeed;
-                    }
-                }
-            }
 
-            // Match leader name
-            foreach (var leader in TimelessLeaders)
+            // Match leader names
+            if (stat.Contains("Asenath", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Balbala", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Nasima", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Doryani", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Xibaqua", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Zerphi", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Kaom", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Rakiata", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Akoya", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Avarius", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Dominus", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Maxarius", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Cadiro", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Caspiro", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Victario", StringComparison.OrdinalIgnoreCase))
             {
-                if (stat.Contains(leader, StringComparison.OrdinalIgnoreCase))
+                var leaderMatch = Regex.Match(stat, @"\b(Asenath|Balbala|Nasima|Doryani|Xibaqua|Zerphi|Kaom|Rakiata|Akoya|Avarius|Dominus|Maxarius|Cadiro|Caspiro|Victario)\b", RegexOptions.IgnoreCase);
+                if (leaderMatch.Success)
                 {
-                    itemInfo.TimelessLeader = leader;
+                    itemInfo.TimelessLeader = leaderMatch.Groups[1].Value;
                     hasHistoricOrTimelessMod = true;
-                    break;
                 }
             }
 
             if (stat.Contains("Historic", StringComparison.OrdinalIgnoreCase) ||
-                stat.Contains("Conquered by", StringComparison.OrdinalIgnoreCase) ||
+                stat.Contains("Conquered", StringComparison.OrdinalIgnoreCase) ||
                 stat.Contains("Passives in radius", StringComparison.OrdinalIgnoreCase))
             {
                 hasHistoricOrTimelessMod = true;
             }
         }
 
-        if (hasHistoricOrTimelessMod || isExactTimeless)
+        // Tự động suy ra Leader theo tên nếu chưa đọc được từ stat
+        if (string.IsNullOrEmpty(itemInfo.TimelessLeader))
         {
-            itemInfo.IsTimelessJewel = true;
-            itemInfo.BaseName = "Timeless Jewel";
+            if (name.Contains("Brutal Restraint", StringComparison.OrdinalIgnoreCase)) itemInfo.TimelessLeader = "Asenath/Balbala/Nasima";
+            else if (name.Contains("Glorious Vanity", StringComparison.OrdinalIgnoreCase)) itemInfo.TimelessLeader = "Doryani/Xibaqua/Zerphi";
+            else if (name.Contains("Lethal Pride", StringComparison.OrdinalIgnoreCase)) itemInfo.TimelessLeader = "Kaom/Rakiata/Akoya";
+            else if (name.Contains("Militant Faith", StringComparison.OrdinalIgnoreCase)) itemInfo.TimelessLeader = "Avarius/Dominus/Maxarius";
+            else if (name.Contains("Elegant Hubris", StringComparison.OrdinalIgnoreCase)) itemInfo.TimelessLeader = "Cadiro/Caspiro/Victario";
         }
-        else
-        {
-            itemInfo.IsTimelessJewel = false;
-        }
+
+        itemInfo.IsTimelessJewel = isExactTimeless || hasHistoricOrTimelessMod;
     }
 
     private static void ParseCost(NormalInventoryItem invItem, ShopItemInfo itemInfo)
     {
         try
         {
-            if (invItem.Children != null)
+            var costParts = new List<string>();
+            ExtractCostTextRecursive(invItem, costParts, 0);
+
+            if (costParts.Count > 0)
             {
-                var costParts = new List<string>();
-                foreach (var child in invItem.Children)
+                var fullCostStr = string.Join(", ", costParts);
+                itemInfo.CostString = fullCostStr;
+
+                if (itemInfo.Cost == null) itemInfo.Cost = new CurrencyCost();
+
+                // Parse Chaos Orb amount (e.g. "20x Chaos Orb", "20 Chaos", "20x Chaos")
+                var chaosMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
+                if (chaosMatch.Success && int.TryParse(chaosMatch.Groups[1].Value, out var chaosAmt))
                 {
-                    if (child != null && child.IsValid && child.IsVisible && !string.IsNullOrWhiteSpace(child.Text))
-                    {
-                        var txt = child.Text.Trim();
-                        if (txt.Contains("Divine", StringComparison.OrdinalIgnoreCase) ||
-                            txt.Contains("Chaos", StringComparison.OrdinalIgnoreCase) ||
-                            txt.Contains("Gold", StringComparison.OrdinalIgnoreCase) ||
-                            txt.Contains("Alc", StringComparison.OrdinalIgnoreCase) ||
-                            txt.Contains("Orb", StringComparison.OrdinalIgnoreCase) ||
-                            txt.Contains("Cost:", StringComparison.OrdinalIgnoreCase))
-                        {
-                            costParts.Add(txt);
-                        }
-                    }
+                    itemInfo.Cost.CurrencyName = "Chaos Orb";
+                    itemInfo.Cost.Amount = chaosAmt;
                 }
 
-                if (costParts.Count > 0)
+                // Parse Divine Orb amount (e.g. "1x Divine Orb", "1 Divine")
+                var divineMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Divine", RegexOptions.IgnoreCase);
+                if (divineMatch.Success && int.TryParse(divineMatch.Groups[1].Value, out var divAmt))
                 {
-                    var fullCostStr = string.Join(", ", costParts);
-                    itemInfo.CostString = fullCostStr;
+                    itemInfo.Cost.CurrencyName = "Divine Orb";
+                    itemInfo.Cost.Amount = divAmt;
+                }
 
-                    if (itemInfo.Cost == null) itemInfo.Cost = new CurrencyCost();
-
-                    // Parse Chaos Orb amount (e.g. "48x Chaos Orb" or "48 Chaos" or "10x Chaos")
-                    var chaosMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
-                    if (chaosMatch.Success && int.TryParse(chaosMatch.Groups[1].Value, out var chaosAmt))
+                // Parse Gold amount (e.g. "10,920 Gold", "10920 Gold")
+                var goldMatch = Regex.Match(fullCostStr, @"([\d,]+)\s*Gold", RegexOptions.IgnoreCase);
+                if (goldMatch.Success)
+                {
+                    var goldDigits = goldMatch.Groups[1].Value.Replace(",", "");
+                    if (int.TryParse(goldDigits, out var goldAmt))
                     {
-                        itemInfo.Cost.CurrencyName = "Chaos Orb";
-                        itemInfo.Cost.Amount = chaosAmt;
-                    }
-
-                    // Parse Divine Orb amount (e.g. "1x Divine Orb" or "5x Divine")
-                    var divineMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Divine", RegexOptions.IgnoreCase);
-                    if (divineMatch.Success && int.TryParse(divineMatch.Groups[1].Value, out var divAmt))
-                    {
-                        itemInfo.Cost.CurrencyName = "Divine Orb";
-                        itemInfo.Cost.Amount = divAmt;
-                    }
-
-                    // Parse Gold amount (e.g. "4,480 Gold" or "10,920 Gold")
-                    var goldMatch = Regex.Match(fullCostStr, @"([\d,]+)\s*Gold", RegexOptions.IgnoreCase);
-                    if (goldMatch.Success)
-                    {
-                        var goldDigits = goldMatch.Groups[1].Value.Replace(",", "");
-                        if (int.TryParse(goldDigits, out var goldAmt))
-                        {
-                            itemInfo.Cost.GoldAmount = goldAmt;
-                        }
+                        itemInfo.Cost.GoldAmount = goldAmt;
                     }
                 }
             }
         }
         catch { }
+    }
+
+    private static void ExtractCostTextRecursive(Element? element, List<string> costParts, int depth)
+    {
+        if (element == null || !element.IsValid || depth > 5) return;
+
+        var txt = (element.Text ?? string.Empty).Trim();
+        var txtNoTags = (element.TextNoTags ?? string.Empty).Trim();
+
+        if (IsCostString(txt)) costParts.Add(txt);
+        else if (IsCostString(txtNoTags)) costParts.Add(txtNoTags);
+
+        if (element.Children != null)
+        {
+            foreach (var child in element.Children)
+            {
+                ExtractCostTextRecursive(child, costParts, depth + 1);
+            }
+        }
+    }
+
+    private static bool IsCostString(string str)
+    {
+        if (string.IsNullOrWhiteSpace(str)) return false;
+        return str.Contains("Chaos", StringComparison.OrdinalIgnoreCase) ||
+               str.Contains("Divine", StringComparison.OrdinalIgnoreCase) ||
+               str.Contains("Gold", StringComparison.OrdinalIgnoreCase) ||
+               str.Contains("Cost:", StringComparison.OrdinalIgnoreCase) ||
+               str.Contains("Orb", StringComparison.OrdinalIgnoreCase);
     }
 
     public int GetTabCount(GameController gc)
@@ -364,8 +372,10 @@ public class Poe1ShopAdapter : IShopAdapter
         {
             if (gc == null) return 1;
             var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
-            var purchaseWindow = (ingameUi?.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi?.PurchaseWindowHideout);
-            if (purchaseWindow == null) return 1;
+            if (ingameUi == null) return 1;
+
+            var purchaseWindow = (ingameUi.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi.PurchaseWindowHideout);
+            if (purchaseWindow == null || !purchaseWindow.IsValid || !purchaseWindow.IsVisible) return 1;
 
             var tabCount = purchaseWindow.TabContainer?.TotalStashes ?? 0L;
             return tabCount > 0 ? (int)tabCount : 1;
@@ -382,8 +392,13 @@ public class Poe1ShopAdapter : IShopAdapter
         {
             if (gc == null) return 0;
             var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
-            var purchaseWindow = (ingameUi?.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi?.PurchaseWindowHideout);
-            return (int)(purchaseWindow?.TabContainer?.VisibleStashIndex ?? 0);
+            if (ingameUi == null) return 0;
+
+            var purchaseWindow = (ingameUi.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi.PurchaseWindowHideout);
+            if (purchaseWindow == null || !purchaseWindow.IsValid || !purchaseWindow.IsVisible) return 0;
+
+            var tabIndex = (int)(purchaseWindow.TabContainer?.CurrentStashIndex ?? 0L);
+            return Math.Max(0, tabIndex);
         }
         catch
         {
@@ -397,8 +412,10 @@ public class Poe1ShopAdapter : IShopAdapter
         {
             if (gc == null) return false;
             var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
-            var purchaseWindow = (ingameUi?.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi?.PurchaseWindowHideout);
-            if (purchaseWindow?.TabContainer == null) return false;
+            if (ingameUi == null) return false;
+
+            var purchaseWindow = (ingameUi.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi.PurchaseWindowHideout);
+            if (purchaseWindow == null || !purchaseWindow.IsValid || !purchaseWindow.IsVisible) return false;
 
             // Check if tab buttons element exists
             var tabList = purchaseWindow.TabContainer.TabSwitchBar;
@@ -413,23 +430,19 @@ public class Poe1ShopAdapter : IShopAdapter
                     return true;
                 }
             }
-            return false;
         }
         catch (Exception ex)
         {
-            LogHelper.Error($"Lỗi khi chuyển sang tab {tabIndex} trong PoE 1 Shop", ex);
-            return false;
+            LogHelper.Error($"Lỗi khi chuyển Tab {tabIndex} trong PoE 1", ex);
         }
+
+        return false;
     }
 
     private static string ParseBaseNameFromPath(string path)
     {
         if (string.IsNullOrEmpty(path)) return string.Empty;
         var lastSlash = path.LastIndexOf('/');
-        if (lastSlash >= 0 && lastSlash < path.Length - 1)
-        {
-            return path.Substring(lastSlash + 1).Replace('_', ' ');
-        }
-        return path;
+        return lastSlash >= 0 ? path.Substring(lastSlash + 1) : path;
     }
 }
