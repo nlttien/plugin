@@ -36,6 +36,19 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
         }
 
+        // Gan su kien cho nut dung khan cap trong menu
+        if (Settings?.EmergencyStopButton != null)
+        {
+            Settings.EmergencyStopButton.OnPressed = () =>
+            {
+                _isPausedByUser = true;
+                if (Settings.PauseAutoBuyer != null) Settings.PauseAutoBuyer.Value = true;
+                StopAllPurchases();
+                NotifyWebTradeStatus("STOPPED");
+                LogHelper.Warn(">>> [ShopAutoBuyer] NUT DUNG KHAN CAP DA DUOC BAM! (Tam dung he thong) <<<");
+            };
+        }
+
         LogHelper.Info("Plugin ShopAutoBuyer da khoi tao thanh cong (Ho tro PoE 1 & PoE 2).");
         return true;
     }
@@ -57,17 +70,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
             }
 
-            // 1. Nut Dung Khan Cap (Emergency Stop Button trong Menu)
-            if (Settings?.EmergencyStopButton != null && Settings.EmergencyStopButton.PressedOnce())
-            {
-                _isPausedByUser = true;
-                if (Settings.PauseAutoBuyer != null) Settings.PauseAutoBuyer.Value = true;
-                StopAllPurchases();
-                NotifyWebTradeStatus("STOPPED");
-                LogHelper.Warn(">>> [ShopAutoBuyer] NUT DUNG KHAN CAP DA DUOC BAM! (Tam dung he thong) <<<");
-            }
-
-            // 2. Phim tat DUNG / TIEP TUC (F7)
+            // 1. Phim tat DUNG / TIEP TUC (F7)
             if (Settings?.StopHotkey != null && Settings.StopHotkey.PressedOnce())
             {
                 _isPausedByUser = !_isPausedByUser;
@@ -86,7 +89,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
-            // 3. Dong bo voi Toggle PauseAutoBuyer trong Menu
+            // 2. Dong bo voi Toggle PauseAutoBuyer trong Menu
             if (Settings?.PauseAutoBuyer != null && Settings.PauseAutoBuyer.Value != _isPausedByUser)
             {
                 _isPausedByUser = Settings.PauseAutoBuyer.Value;
@@ -108,7 +111,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             var isShopOpen = adapter.IsShopOpen(GameController);
             _isShopOpenCached = isShopOpen;
 
-            // 4. TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam bat ky nut nao
+            // 3. TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam bat ky nut nao
             if (isShopOpen && !_isPausedByUser && Settings?.HighlightOnlyMode?.Value != true)
             {
                 var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
@@ -311,7 +314,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 this,
                 "ShopAutoBuyer_PurchaseRoutine"
             );
-            Core.ParallelRunner.Run(_currentCoroutine);
+            ExileCore.Core.ParallelRunner.Run(_currentCoroutine);
         }
     }
 
