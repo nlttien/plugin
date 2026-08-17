@@ -123,7 +123,7 @@ public class PurchaseExecutor
                     MouseHelper.CtrlLeftClick();
                     yield return new WaitTime(120);
 
-                    // 4. Tự động kiểm tra & CLICK THEO ĐÚNG ĐỊA CHỈ BỘ NHỚ CỦA NÚT [ OK ]
+                    // 4. Tự động kiểm tra & CLICK THEO ĐÚNG TÂM NÚT [ OK ]
                     HandlePriceDifferenceModal(_gc, _settings);
                     yield return new WaitTime(100);
 
@@ -159,84 +159,60 @@ public class PurchaseExecutor
         try
         {
             if (gc == null) return;
-            var ingameState = gc.IngameState ?? gc.Game?.IngameState;
-            if (ingameState == null) return;
+            var winRect = gc.Window.GetWindowRectangle();
+            if (winRect.Width <= 0 || winRect.Height <= 0) return;
 
-            var ingameUi = ingameState.IngameUi;
-            Vector2 targetPos = Vector2.Zero;
-            bool foundFromMemory = false;
+            var scaleX = winRect.Width / 1920f;
+            var scaleY = winRect.Height / 1080f;
+            var customX = settings?.OkButtonX?.Value ?? 774;
+            var customY = settings?.OkButtonY?.Value ?? 551;
 
-            // 1. TÌM TRỰC TIẾP TỪ BỘ NHỚ: Quét cây IngameUi / UIRoot tìm hộp thoại 'price differs'
+            // Tọa độ chuẩn căn chỉnh theo màn hình thực tế: (winRect.Left + customX, winRect.Top + customY)
+            var targetPos = new Vector2(winRect.Left + customX * scaleX, winRect.Top + customY * scaleY);
+
+            // Kiểm tra cây bộ nhớ UI xem có trích xuất được nút OK chính xác không
             try
             {
-                Element? dialogElement = null;
+                var ingameState = gc.IngameState ?? gc.Game?.IngameState;
+                var ingameUi = ingameState?.IngameUi;
                 if (ingameUi != null)
                 {
-                    dialogElement = FindPriceDifferenceDialogInMemory(ingameUi);
-                }
-
-                if (dialogElement == null && ingameState.UIRoot != null)
-                {
-                    dialogElement = FindPriceDifferenceDialogInMemory(ingameState.UIRoot);
-                }
-
-                if (dialogElement != null && dialogElement.IsValid && dialogElement.IsVisible)
-                {
-                    // Tìm nút OK con bên trong hộp thoại bộ nhớ
-                    var okChild = FindOkChildButtonInMemory(dialogElement);
-                    if (okChild != null && okChild.IsValid && okChild.IsVisible)
+                    var dialogElement = FindPriceDifferenceDialogInMemory(ingameUi);
+                    if (dialogElement == null && ingameState?.UIRoot != null)
                     {
-                        var r = okChild.GetClientRect();
-                        if (r.Width > 10 && r.Height > 10)
-                        {
-                            targetPos = new Vector2(r.Center.X, r.Center.Y);
-                            foundFromMemory = true;
-                            LogHelper.Info($"[Bộ Nhớ] Đã tìm thấy nút OK con bên trong hộp thoại tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
-                        }
+                        dialogElement = FindPriceDifferenceDialogInMemory(ingameState.UIRoot);
                     }
 
-                    if (!foundFromMemory)
+                    if (dialogElement != null && dialogElement.IsValid && dialogElement.IsVisible)
                     {
-                        var dRect = dialogElement.GetClientRect();
-                        if (dRect.Width > 100 && dRect.Height > 40)
+                        var okChild = FindOkChildButtonInMemory(dialogElement);
+                        if (okChild != null && okChild.IsValid && okChild.IsVisible)
                         {
-                            targetPos = new Vector2(dRect.Center.X, dRect.Top + dRect.Height * 0.72f);
-                            foundFromMemory = true;
-                            LogHelper.Info($"[Bộ Nhớ] Tính tọa độ nút OK theo khung hộp thoại bộ nhớ tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
+                            var r = okChild.GetClientRect();
+                            // Kiểm tra kích thước thực của nút OK (rộng từ 30-220px, cao từ 15-70px)
+                            if (r.Width >= 30 && r.Width <= 220 && r.Height >= 15 && r.Height <= 70)
+                            {
+                                targetPos = new Vector2(r.Center.X, r.Center.Y);
+                                LogHelper.Info($"[Bộ Nhớ] Trích xuất tọa độ nút OK chính xác từ RAM: ({targetPos.X:F0}, {targetPos.Y:F0})");
+                            }
                         }
                     }
                 }
             }
             catch { }
 
-            // 2. FALLBACK: Tính theo tỉ lệ khung hình cửa sổ Game nếu bộ nhớ chưa đọc kịp
-            if (!foundFromMemory)
-            {
-                var winRect = gc.Window.GetWindowRectangle();
-                if (winRect.Width > 0 && winRect.Height > 0)
-                {
-                    var scaleX = winRect.Width / 1920f;
-                    var scaleY = winRect.Height / 1080f;
-                    var customX = settings?.OkButtonX?.Value ?? 787;
-                    var customY = settings?.OkButtonY?.Value ?? 545;
+            // 1. Di chuyển chuột thẳng đến tâm nút [ OK ] và Click
+            MouseHelper.MoveMouse(targetPos);
+            Thread.Sleep(35);
+            MouseHelper.LeftClick();
+            Thread.Sleep(35);
+            MouseHelper.LeftClick();
 
-                    targetPos = new Vector2(winRect.Left + customX * scaleX, winRect.Top + customY * scaleY);
-                }
-            }
+            // 2. Gửi phím hỗ trợ
+            Input.KeyPress(Keys.Space);
+            Input.KeyPress(Keys.Enter);
 
-            if (targetPos != Vector2.Zero)
-            {
-                MouseHelper.MoveMouse(targetPos);
-                Thread.Sleep(35);
-                MouseHelper.LeftClick();
-                Thread.Sleep(35);
-                MouseHelper.LeftClick();
-
-                Input.KeyPress(Keys.Space);
-                Input.KeyPress(Keys.Enter);
-
-                LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
-            }
+            LogHelper.Info($"Đã bấm xác nhận nút [ OK ] tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
         }
         catch (Exception ex)
         {

@@ -239,6 +239,23 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             {
                 RenderStatusOverlayBox(isShopOpen);
             }
+
+            // 3. Ve khung can chinh vi tri bam nut OK khi mo Shop
+            if (isShopOpen && Settings != null)
+            {
+                var winRect = GameController.Window.GetWindowRectangle();
+                if (winRect.Width > 0 && winRect.Height > 0)
+                {
+                    var scaleX = winRect.Width / 1920f;
+                    var scaleY = winRect.Height / 1080f;
+                    var targetX = winRect.Left + Settings.OkButtonX.Value * scaleX;
+                    var targetY = winRect.Top + Settings.OkButtonY.Value * scaleY;
+
+                    var boxRect = new RectangleF(targetX - 55, targetY - 16, 110, 32);
+                    Graphics.DrawFrame(boxRect, Color.OrangeRed, 2);
+                    Graphics.DrawText($"[OK TARGET ({Settings.OkButtonX.Value}, {Settings.OkButtonY.Value})]", new Vector2(targetX - 55, targetY - 20), Color.OrangeRed);
+                }
+            }
         }
         catch (Exception ex)
         {
