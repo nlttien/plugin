@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ExileCore;
 using ExileCore.PoEMemory.Components;
 using ExileCore.PoEMemory.Elements;
+using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.Shared.Enums;
 using ShopAutoBuyer.Core.Models;
 using ShopAutoBuyer.Core.Utils;

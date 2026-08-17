@@ -1,6 +1,7 @@
 using System;
 using ExileCore;
 using ExileCore.PoEMemory.Elements;
+using ExileCore.PoEMemory.Elements.InventoryElements;
 using ShopAutoBuyer.Core.Utils;
 
 namespace ShopAutoBuyer.Core.Services;

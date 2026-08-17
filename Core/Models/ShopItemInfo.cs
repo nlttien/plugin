@@ -1,4 +1,5 @@
 using ExileCore.PoEMemory.Elements;
+using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.Shared.Enums;
 using SharpDX;
 using Vector2 = System.Numerics.Vector2;
