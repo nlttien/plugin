@@ -100,8 +100,8 @@ public class Poe2ShopAdapter : IShopAdapter
         {
             var ingameUi = gc?.Game?.IngameState?.IngameUi;
             var purchaseWindow = (ingameUi?.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi?.PurchaseWindowHideout);
-            var tabCount = purchaseWindow?.TabContainer?.TotalStashes ?? 0;
-            return tabCount > 0 ? tabCount : 1;
+            var tabCount = purchaseWindow?.TabContainer?.TotalStashes ?? 0L;
+            return tabCount > 0 ? (int)tabCount : 1;
         }
         catch
         {
@@ -115,7 +115,7 @@ public class Poe2ShopAdapter : IShopAdapter
         {
             var ingameUi = gc?.Game?.IngameState?.IngameUi;
             var purchaseWindow = (ingameUi?.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi?.PurchaseWindowHideout);
-            return purchaseWindow?.TabContainer?.VisibleStashIndex ?? 0;
+            return (int)(purchaseWindow?.TabContainer?.VisibleStashIndex ?? 0);
         }
         catch
         {

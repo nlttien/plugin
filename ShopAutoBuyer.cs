@@ -145,7 +145,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             return;
         }
 
-        Core.ParallelRunner.Run(new Coroutine(
+        ExileCore.Core.ParallelRunner.Run(new Coroutine(
             _purchaseExecutor.ExecutePurchaseCoroutine(),
             this,
             "ShopAutoBuyer_PurchaseRoutine"
