@@ -1,5 +1,6 @@
 using System;
 using ExileCore;
+using SharpDX;
 
 namespace ShopAutoBuyer.Core.Utils;
 
@@ -14,12 +15,12 @@ public static class LogHelper
 
     public static void Debug(string message)
     {
-        DebugWindow.LogDebug(Prefix + message, 2f);
+        DebugWindow.LogMsg(Prefix + message, 2f, Color.Gray);
     }
 
     public static void Warn(string message)
     {
-        DebugWindow.LogMsg(Prefix + "[WARN] " + message, 5f, SharpDX.Color.Yellow);
+        DebugWindow.LogMsg(Prefix + "[WARN] " + message, 5f, Color.Yellow);
     }
 
     public static void Error(string message, Exception? ex = null)

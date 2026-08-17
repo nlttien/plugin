@@ -163,7 +163,7 @@ public class Poe1ShopAdapter : IShopAdapter
         {
             var ingameUi = gc?.Game?.IngameState?.IngameUi;
             var purchaseWindow = (ingameUi?.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi?.PurchaseWindowHideout);
-            return purchaseWindow?.TabContainer?.IndexVisibleStash ?? 0;
+            return purchaseWindow?.TabContainer?.VisibleStashIndex ?? 0;
         }
         catch
         {

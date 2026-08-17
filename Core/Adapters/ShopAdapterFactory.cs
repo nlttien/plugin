@@ -7,8 +7,17 @@ namespace ShopAutoBuyer.Core.Adapters;
 
 public class ShopAdapterFactory
 {
-    private readonly Poe1ShopAdapter _poe1Adapter = new();
-    private readonly Poe2ShopAdapter _poe2Adapter = new();
+    private readonly Poe1ShopAdapter _poe1Adapter = new Poe1ShopAdapter();
+    private readonly Poe2ShopAdapter _poe2Adapter = new Poe2ShopAdapter();
+
+    public IShopAdapter GetAdapter(GameController gc, string versionSetting)
+    {
+        if (Enum.TryParse<GameVersionEnum>(versionSetting, true, out var ver))
+        {
+            return GetAdapter(gc, ver);
+        }
+        return GetAdapter(gc, GameVersionEnum.AutoDetect);
+    }
 
     public IShopAdapter GetAdapter(GameController gc, GameVersionEnum versionSetting)
     {
