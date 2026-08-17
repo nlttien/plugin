@@ -169,8 +169,8 @@ public class PurchaseExecutor
 
             var scaleX = realWinRect.Width / 1920f;
             var scaleY = realWinRect.Height / 1080f;
-            var customX = settings?.OkButtonX?.Value ?? 774;
-            var customY = settings?.OkButtonY?.Value ?? 551;
+            var customX = settings?.OkButtonX?.Value ?? 745;
+            var customY = settings?.OkButtonY?.Value ?? 568;
 
             // Tọa độ ĐỒNG BỘ 100% VỚI KHUNG NGẮM TRỰC QUAN TRÊN MÀN HÌNH (ĐÃ TRỪ TIÊU ĐỀ TITLE BAR)
             var targetPos = new Vector2(realWinRect.Left + customX * scaleX, realWinRect.Top + customY * scaleY);
