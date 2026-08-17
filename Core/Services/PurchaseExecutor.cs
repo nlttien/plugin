@@ -194,18 +194,30 @@ public class PurchaseExecutor
         try
         {
             if (gc == null) return null;
-            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
-            if (ingameUi == null) return null;
+            var ingameState = gc.IngameState ?? gc.Game?.IngameState;
+            if (ingameState == null) return null;
 
             var costParts = new List<string>();
 
-            if (ingameUi.ItemOnHover != null && ingameUi.ItemOnHover.IsValid)
+            // 1. Quét UIHover và UIHoverTooltip từ IngameState
+            if (ingameState.UIHover != null && ingameState.UIHover.IsValid)
             {
-                Poe1ShopAdapter.ExtractCostTextRecursive(ingameUi.ItemOnHover, costParts, 0);
-                if (ingameUi.ItemOnHover.ToolTip != null && ingameUi.ItemOnHover.ToolTip.IsValid)
-                {
-                    Poe1ShopAdapter.ExtractCostTextRecursive(ingameUi.ItemOnHover.ToolTip, costParts, 0);
-                }
+                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHover, costParts, 0);
+            }
+            if (ingameState.UIHoverTooltip != null && ingameState.UIHoverTooltip.IsValid)
+            {
+                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHoverTooltip, costParts, 0);
+            }
+            if (ingameState.UIHoverElement != null && ingameState.UIHoverElement.IsValid)
+            {
+                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHoverElement, costParts, 0);
+            }
+
+            // 2. Quét UIRoot nếu cần
+            var uiRoot = ingameState.UIRoot;
+            if (uiRoot != null && uiRoot.IsValid && costParts.Count == 0)
+            {
+                Poe1ShopAdapter.ExtractCostTextRecursive(uiRoot, costParts, 0);
             }
 
             if (costParts.Count > 0)

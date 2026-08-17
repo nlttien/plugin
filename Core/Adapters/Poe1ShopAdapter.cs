@@ -299,9 +299,9 @@ public class Poe1ShopAdapter : IShopAdapter
             var costParts = new List<string>();
             ExtractCostTextRecursive(invItem, costParts, 0);
 
-            if (invItem.ToolTip != null && invItem.ToolTip.IsValid)
+            if (invItem.Tooltip != null && invItem.Tooltip.IsValid)
             {
-                ExtractCostTextRecursive(invItem.ToolTip, costParts, 0);
+                ExtractCostTextRecursive(invItem.Tooltip, costParts, 0);
             }
 
             if (costParts.Count > 0)
