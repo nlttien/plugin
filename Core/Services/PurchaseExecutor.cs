@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using ExileCore;
@@ -86,7 +85,7 @@ public class PurchaseExecutor
                     if (currentItems == null || currentItems.Count == 0) continue;
                 }
 
-                // Lấy danh sách item đạt chuẩn
+                // Lấy danh sách item đạt chuẩn lọc từ bộ nhớ RAM
                 List<ShopItemInfo> matchingItems;
                 if (_settings.OnlyBuyTimelessJewels?.Value == true)
                 {
@@ -126,20 +125,7 @@ public class PurchaseExecutor
                     MouseHelper.MoveMouseWithJitter(item.ScreenRect);
                     yield return new WaitTime(MouseHelper.GetRandomDelay(_settings.MinDelayMs.Value, _settings.MaxDelayMs.Value));
 
-                    // 2.5 KIỂM TRA LẠI GIÁ TRỰC TIẾP TỪ TOOLTIP SAU KHI RÊ CHUỘT
-                    var liveCost = ReadLiveHoveredCost(_gc);
-                    if (liveCost != null)
-                    {
-                        item.Cost = liveCost;
-                        item.CostString = $"{liveCost.Amount} {liveCost.CurrencyName}";
-                        if (!ItemFilterEngine.MatchesTimelessSettings(item, _settings))
-                        {
-                            LogHelper.Warn($"[BỎ QUA KHÔNG MUA] {item.DisplayName} vì giá không hợp lệ: {liveCost.Amount} {liveCost.CurrencyName}");
-                            continue;
-                        }
-                    }
-
-                    // 3. Thực hiện thao tác Ctrl + Left Click để mua
+                    // 3. Thực hiện thao tác Ctrl + Left Click để MUA NGAY LẬP TỨC
                     MouseHelper.CtrlLeftClick();
 
                     // Đợi server phản hồi và quét chủ động xem hộp thoại cảnh báo giá có xuất hiện không (trong 450ms)
@@ -193,64 +179,6 @@ public class PurchaseExecutor
             }
             catch { }
         }
-    }
-
-    public static CurrencyCost? ReadLiveHoveredCost(GameController gc)
-    {
-        try
-        {
-            if (gc == null) return null;
-            var ingameState = gc.IngameState ?? gc.Game?.IngameState;
-            if (ingameState == null) return null;
-
-            var costParts = new List<string>();
-
-            // 1. Quét UIHover và UIHoverTooltip từ IngameState
-            if (ingameState.UIHover != null && ingameState.UIHover.IsValid)
-            {
-                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHover, costParts, 0);
-            }
-            if (ingameState.UIHoverTooltip != null && ingameState.UIHoverTooltip.IsValid)
-            {
-                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHoverTooltip, costParts, 0);
-            }
-            if (ingameState.UIHoverElement != null && ingameState.UIHoverElement.IsValid)
-            {
-                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHoverElement, costParts, 0);
-            }
-
-            // 2. Quét UIRoot nếu cần
-            var uiRoot = ingameState.UIRoot;
-            if (uiRoot != null && uiRoot.IsValid && costParts.Count == 0)
-            {
-                Poe1ShopAdapter.ExtractCostTextRecursive(uiRoot, costParts, 0);
-            }
-
-            if (costParts.Count > 0)
-            {
-                var fullCostStr = string.Join(", ", costParts);
-                var cost = new CurrencyCost();
-
-                var divMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Divine", RegexOptions.IgnoreCase);
-                if (divMatch.Success && int.TryParse(divMatch.Groups[1].Value, out var divAmt))
-                {
-                    cost.CurrencyName = "Divine Orb";
-                    cost.Amount = divAmt;
-                    return cost;
-                }
-
-                var chaosMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
-                if (chaosMatch.Success && int.TryParse(chaosMatch.Groups[1].Value, out var chaosAmt))
-                {
-                    cost.CurrencyName = "Chaos Orb";
-                    cost.Amount = chaosAmt;
-                    return cost;
-                }
-            }
-        }
-        catch { }
-
-        return null;
     }
 
     public static bool IsPriceDifferenceModalOpen(GameController gc)
