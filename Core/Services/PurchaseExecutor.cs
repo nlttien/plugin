@@ -167,52 +167,24 @@ public class PurchaseExecutor
             Vector2 targetPos = Vector2.Zero;
             bool foundFromMemory = false;
 
-            // 1. TÌM TRỰC TIẾP TỪ BỘ NHỚ: PopUpWindow (ConfirmButton / AcceptButton)
+            // 1. TÌM TRỰC TIẾP TỪ BỘ NHỚ: IngameUi.TwoButtonWindowOk
             try
             {
-                var popUp = ingameUi?.PopUpWindow;
-                if (popUp != null && popUp.IsValid && popUp.IsVisible)
+                var twoBtnOk = ingameUi?.TwoButtonWindowOk;
+                if (twoBtnOk != null && twoBtnOk.IsValid && twoBtnOk.IsVisible)
                 {
-                    var confirmBtn = popUp.ConfirmButton ?? popUp.AcceptButton;
-                    if (confirmBtn != null && confirmBtn.IsValid && confirmBtn.IsVisible)
+                    var btnRect = twoBtnOk.GetClientRect();
+                    if (btnRect.Width > 10 && btnRect.Height > 10)
                     {
-                        var btnRect = confirmBtn.GetClientRect();
-                        if (btnRect.Width > 10 && btnRect.Height > 10)
-                        {
-                            targetPos = new Vector2(btnRect.Center.X, btnRect.Center.Y);
-                            foundFromMemory = true;
-                            LogHelper.Info($"[Bộ Nhớ] Đã tìm thấy nút OK trực tiếp từ PopUpWindow tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
-                        }
+                        targetPos = new Vector2(btnRect.Center.X, btnRect.Center.Y);
+                        foundFromMemory = true;
+                        LogHelper.Info($"[Bộ Nhớ] Đã tìm thấy nút OK từ TwoButtonWindowOk tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
                     }
                 }
             }
             catch { }
 
-            // 2. TÌM TRỰC TIẾP TỪ BỘ NHỚ: DestroyConfirmationWindow
-            if (!foundFromMemory)
-            {
-                try
-                {
-                    var destroyWin = ingameUi?.DestroyConfirmationWindow;
-                    if (destroyWin != null && destroyWin.IsValid && destroyWin.IsVisible)
-                    {
-                        var confirmBtn = destroyWin.ConfirmButton ?? destroyWin.AcceptButton;
-                        if (confirmBtn != null && confirmBtn.IsValid && confirmBtn.IsVisible)
-                        {
-                            var btnRect = confirmBtn.GetClientRect();
-                            if (btnRect.Width > 10 && btnRect.Height > 10)
-                            {
-                                targetPos = new Vector2(btnRect.Center.X, btnRect.Center.Y);
-                                foundFromMemory = true;
-                                LogHelper.Info($"[Bộ Nhớ] Đã tìm thấy nút OK trực tiếp từ DestroyConfirmationWindow tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
-                            }
-                        }
-                    }
-                }
-                catch { }
-            }
-
-            // 3. TÌM TRỰC TIẾP TỪ BỘ NHỚ: Quét cây IngameUi / UIRoot tìm hộp thoại 'price differs'
+            // 2. TÌM TRỰC TIẾP TỪ BỘ NHỚ: Quét cây IngameUi / UIRoot tìm hộp thoại 'price differs'
             if (!foundFromMemory && ingameUi != null)
             {
                 try
@@ -253,7 +225,7 @@ public class PurchaseExecutor
                 catch { }
             }
 
-            // 4. FALLBACK: Tính theo tỉ lệ khung hình cửa sổ Game nếu bộ nhớ chưa đọc kịp
+            // 3. FALLBACK: Tính theo tỉ lệ khung hình cửa sổ Game nếu bộ nhớ chưa đọc kịp
             if (!foundFromMemory)
             {
                 var winRect = gc.Window.GetWindowRectangle();
