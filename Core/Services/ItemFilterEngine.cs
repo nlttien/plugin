@@ -12,6 +12,12 @@ public static class ItemFilterEngine
     {
         if (item == null || rule == null || !rule.Enabled) return false;
 
+        // Special handling for Timeless Jewel Exclusive Mode
+        if (rule.Name == "Timeless Jewel Exclusive")
+        {
+            return item.IsTimelessJewel;
+        }
+
         // 1. Check Rarity
         switch (item.Rarity)
         {
@@ -69,7 +75,8 @@ public static class ItemFilterEngine
                 if (trimmed.Equals("Timeless Jewel", StringComparison.OrdinalIgnoreCase) ||
                     trimmed.Equals("Timeless", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (itemBase.Contains("Timeless", StringComparison.OrdinalIgnoreCase) ||
+                    if (item.IsTimelessJewel ||
+                        itemBase.Contains("Timeless", StringComparison.OrdinalIgnoreCase) ||
                         itemPath.Contains("JewelPassiveTreeExpansion", StringComparison.OrdinalIgnoreCase) ||
                         itemName.Contains("Brutal Restraint", StringComparison.OrdinalIgnoreCase) ||
                         itemName.Contains("Glorious Vanity", StringComparison.OrdinalIgnoreCase) ||

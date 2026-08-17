@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.Shared.Enums;
@@ -18,6 +19,12 @@ public class ShopItemInfo
     public int Links { get; set; } = 0;
     public bool IsRgb { get; set; } = false;
 
+    // Timeless Jewel specific data
+    public bool IsTimelessJewel { get; set; } = false;
+    public int TimelessSeed { get; set; } = 0;
+    public string TimelessLeader { get; set; } = string.Empty;
+    public List<string> ExplicitMods { get; set; } = new List<string>();
+
     public CurrencyCost? Cost { get; set; }
     public string CostString { get; set; } = string.Empty;
 
@@ -34,7 +41,25 @@ public class ShopItemInfo
 
     public NormalInventoryItem? InventoryItem { get; set; }
 
-    public string DisplayName => string.IsNullOrWhiteSpace(Name) || Name == BaseName 
-        ? BaseName 
-        : $"{Name} ({BaseName})";
+    public string DisplayName
+    {
+        get
+        {
+            if (IsTimelessJewel)
+            {
+                var jewelName = !string.IsNullOrWhiteSpace(Name) ? Name : "Timeless Jewel";
+                var seedInfo = TimelessSeed > 0 
+                    ? (!string.IsNullOrWhiteSpace(TimelessLeader) ? $"[{TimelessSeed} {TimelessLeader}]" : $"[{TimelessSeed}]")
+                    : (!string.IsNullOrWhiteSpace(TimelessLeader) ? $"[{TimelessLeader}]" : string.Empty);
+                
+                return string.IsNullOrWhiteSpace(seedInfo) 
+                    ? $"{jewelName} (Timeless Jewel)" 
+                    : $"{jewelName} {seedInfo}";
+            }
+
+            return string.IsNullOrWhiteSpace(Name) || Name == BaseName 
+                ? BaseName 
+                : $"{Name} ({BaseName})";
+        }
+    }
 }

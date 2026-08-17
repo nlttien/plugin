@@ -17,11 +17,17 @@ public class ShopAutoBuyerSettings : ISettings
         Value = "AutoDetect"
     };
 
-    public HotkeyNode TriggerHotkey { get; set; } = new HotkeyNode(Keys.F5);
+    public HotkeyNode TriggerHotkey { get; set; } = new HotkeyNode(Keys.F6);
     public ToggleNode AutoBuyOnOpen { get; set; } = new ToggleNode(false);
     public ToggleNode ScanAllTabs { get; set; } = new ToggleNode(true);
     public ToggleNode HighlightOnlyMode { get; set; } = new ToggleNode(false);
     public ToggleNode ShowStatusBox { get; set; } = new ToggleNode(true);
+
+    // TIMELESS JEWEL SPECIFIC MODE
+    public ToggleNode OnlyBuyTimelessJewels { get; set; } = new ToggleNode(true);
+    public TextNode TimelessJewelLeaders { get; set; } = new TextNode("");
+    public RangeNode<int> TimelessMinSeed { get; set; } = new RangeNode<int>(0, 0, 100000);
+    public RangeNode<int> TimelessMaxSeed { get; set; } = new RangeNode<int>(0, 0, 100000);
 
     // Delays
     public RangeNode<int> MinDelayMs { get; set; } = new RangeNode<int>(100, 30, 1000);
@@ -31,8 +37,8 @@ public class ShopAutoBuyerSettings : ISettings
     public ColorNode HighlightColor { get; set; } = new ColorNode(Color.LimeGreen);
     public RangeNode<int> BorderThickness { get; set; } = new RangeNode<int>(3, 1, 8);
 
-    // Filter Rules
-    public TextNode BaseNamesFilter { get; set; } = new TextNode("Timeless Jewel, Brutal Restraint, Glorious Vanity, Lethal Pride, Militant Faith, Elegant Hubris, Amethyst Ring, Heavy Belt, Two-Stone Ring, Uncut");
+    // General Filter Rules (Used when OnlyBuyTimelessJewels is false)
+    public TextNode BaseNamesFilter { get; set; } = new TextNode("Timeless Jewel, Brutal Restraint, Glorious Vanity, Lethal Pride, Militant Faith, Elegant Hubris");
     public ToggleNode BuyNormal { get; set; } = new ToggleNode(true);
     public ToggleNode BuyMagic { get; set; } = new ToggleNode(true);
     public ToggleNode BuyRare { get; set; } = new ToggleNode(true);
@@ -47,6 +53,28 @@ public class ShopAutoBuyerSettings : ISettings
     {
         var rules = new List<FilterRule>();
 
+        // If Timeless Jewel exclusive mode is ON:
+        if (OnlyBuyTimelessJewels?.Value == true)
+        {
+            rules.Add(new FilterRule
+            {
+                Enabled = true,
+                Name = "Timeless Jewel Exclusive",
+                BaseNameFilter = "Timeless Jewel",
+                MatchNormal = true,
+                MatchMagic = true,
+                MatchRare = true,
+                MatchUnique = true,
+                MinItemLevel = 0,
+                MinQuality = 0,
+                MinSockets = 0,
+                MinLinks = 0,
+                RequireRgbSockets = false
+            });
+            return rules;
+        }
+
+        // Otherwise use general user filter
         var baseFilter = BaseNamesFilter?.Value ?? string.Empty;
         var buyNorm = BuyNormal?.Value ?? true;
         var buyMag = BuyMagic?.Value ?? true;

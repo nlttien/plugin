@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using ExileCore;
 using ExileCore.PoEMemory.Components;
 using ExileCore.PoEMemory.Elements;
@@ -15,6 +16,15 @@ namespace ShopAutoBuyer.Core.Adapters;
 public class Poe1ShopAdapter : IShopAdapter
 {
     public string AdapterName => "Path of Exile 1 Shop Adapter";
+
+    private static readonly string[] TimelessLeaders = new[]
+    {
+        "Asenath", "Balbala", "Nasima",
+        "Doryani", "Xibaqua", "Zerphi",
+        "Kaom", "Rakiata", "Akoya",
+        "Avarius", "Dominus", "Venarius",
+        "Cadiro", "Caspiro", "Victario"
+    };
 
     public bool IsShopOpen(GameController gc)
     {
@@ -104,12 +114,6 @@ public class Poe1ShopAdapter : IShopAdapter
                         itemInfo.BaseName = ParseBaseNameFromPath(itemInfo.ItemPath);
                     }
 
-                    // Identify Timeless Jewels from path if base name was generic
-                    if (itemInfo.ItemPath.Contains("JewelPassiveTreeExpansion", StringComparison.OrdinalIgnoreCase))
-                    {
-                        itemInfo.BaseName = "Timeless Jewel";
-                    }
-
                     // Mods Component
                     var modsComp = itemEntity.GetComponent<Mods>();
                     if (modsComp != null)
@@ -117,6 +121,9 @@ public class Poe1ShopAdapter : IShopAdapter
                         itemInfo.Rarity = modsComp.ItemRarity;
                         itemInfo.ItemLevel = modsComp.ItemLevel;
                         itemInfo.Name = modsComp.UniqueName ?? itemInfo.BaseName;
+
+                        // Check Timeless Jewel identification
+                        CheckAndParseTimelessJewel(itemInfo, modsComp);
                     }
 
                     // Sockets Component
@@ -136,28 +143,7 @@ public class Poe1ShopAdapter : IShopAdapter
                     }
 
                     // Try parse cost from item children or tooltip
-                    try
-                    {
-                        if (invItem.Children != null)
-                        {
-                            foreach (var child in invItem.Children)
-                            {
-                                if (child != null && child.IsValid && child.IsVisible && !string.IsNullOrWhiteSpace(child.Text))
-                                {
-                                    var txt = child.Text.Trim();
-                                    if (txt.Contains("Cost", StringComparison.OrdinalIgnoreCase) ||
-                                        txt.Contains("Gold", StringComparison.OrdinalIgnoreCase) ||
-                                        txt.Contains("Orb", StringComparison.OrdinalIgnoreCase) ||
-                                        txt.Contains("x ", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        itemInfo.CostString = txt;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch { }
+                    ParseCost(invItem, itemInfo);
                 }
                 else
                 {
@@ -173,6 +159,92 @@ public class Poe1ShopAdapter : IShopAdapter
         }
 
         return result;
+    }
+
+    private static void CheckAndParseTimelessJewel(ShopItemInfo itemInfo, Mods modsComp)
+    {
+        var path = itemInfo.ItemPath;
+        var name = itemInfo.Name ?? string.Empty;
+        var baseName = itemInfo.BaseName ?? string.Empty;
+
+        var isTimeless = path.Contains("JewelPassiveTreeExpansion", StringComparison.OrdinalIgnoreCase) ||
+                         baseName.Contains("Timeless Jewel", StringComparison.OrdinalIgnoreCase) ||
+                         name.Contains("Brutal Restraint", StringComparison.OrdinalIgnoreCase) ||
+                         name.Contains("Glorious Vanity", StringComparison.OrdinalIgnoreCase) ||
+                         name.Contains("Lethal Pride", StringComparison.OrdinalIgnoreCase) ||
+                         name.Contains("Militant Faith", StringComparison.OrdinalIgnoreCase) ||
+                         name.Contains("Elegant Hubris", StringComparison.OrdinalIgnoreCase);
+
+        if (!isTimeless) return;
+
+        itemInfo.IsTimelessJewel = true;
+        itemInfo.BaseName = "Timeless Jewel";
+
+        // Collect stats text
+        var statsList = new List<string>();
+        if (modsComp.HumanStats != null) statsList.AddRange(modsComp.HumanStats);
+        if (modsComp.ExplicitMods != null) statsList.AddRange(modsComp.ExplicitMods);
+
+        itemInfo.ExplicitMods = statsList;
+
+        // Parse Seed & Leader
+        foreach (var stat in statsList)
+        {
+            if (string.IsNullOrWhiteSpace(stat)) continue;
+
+            // Match seed numbers, e.g. "3693 dekhara" or "1234 warriors"
+            var match = Regex.Match(stat, @"\b(\d{2,6})\b");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var seed))
+            {
+                if (seed > 0 && itemInfo.TimelessSeed == 0)
+                {
+                    itemInfo.TimelessSeed = seed;
+                }
+            }
+
+            // Match leader name
+            foreach (var leader in TimelessLeaders)
+            {
+                if (stat.Contains(leader, StringComparison.OrdinalIgnoreCase))
+                {
+                    itemInfo.TimelessLeader = leader;
+                    break;
+                }
+            }
+        }
+    }
+
+    private static void ParseCost(NormalInventoryItem invItem, ShopItemInfo itemInfo)
+    {
+        try
+        {
+            if (invItem.Children != null)
+            {
+                var costParts = new List<string>();
+                foreach (var child in invItem.Children)
+                {
+                    if (child != null && child.IsValid && child.IsVisible && !string.IsNullOrWhiteSpace(child.Text))
+                    {
+                        var txt = child.Text.Trim();
+                        if (txt.Contains("Divine", StringComparison.OrdinalIgnoreCase) ||
+                            txt.Contains("Chaos", StringComparison.OrdinalIgnoreCase) ||
+                            txt.Contains("Gold", StringComparison.OrdinalIgnoreCase) ||
+                            txt.Contains("Alc", StringComparison.OrdinalIgnoreCase) ||
+                            txt.Contains("Orb", StringComparison.OrdinalIgnoreCase) ||
+                            txt.Contains("Cost:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            costParts.Add(txt);
+                        }
+                    }
+                }
+
+                if (costParts.Count > 0)
+                {
+                    itemInfo.CostString = string.Join(", ", costParts);
+                }
+            }
+        }
+        catch { }
     }
 
     public int GetTabCount(GameController gc)
