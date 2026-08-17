@@ -21,6 +21,7 @@ public class ShopAutoBuyerSettings : ISettings
     public ToggleNode AutoBuyOnOpen { get; set; } = new ToggleNode(false);
     public ToggleNode ScanAllTabs { get; set; } = new ToggleNode(true);
     public ToggleNode HighlightOnlyMode { get; set; } = new ToggleNode(false);
+    public ToggleNode ShowStatusBox { get; set; } = new ToggleNode(true);
 
     // Delays
     public RangeNode<int> MinDelayMs { get; set; } = new RangeNode<int>(100, 30, 1000);
@@ -31,7 +32,7 @@ public class ShopAutoBuyerSettings : ISettings
     public RangeNode<int> BorderThickness { get; set; } = new RangeNode<int>(3, 1, 8);
 
     // Filter Rules
-    public TextNode BaseNamesFilter { get; set; } = new TextNode("Amethyst Ring, Heavy Belt, Two-Stone Ring, Sapphire Ring, Ruby Ring, Topaz Ring, Uncut");
+    public TextNode BaseNamesFilter { get; set; } = new TextNode("Timeless Jewel, Brutal Restraint, Glorious Vanity, Lethal Pride, Militant Faith, Elegant Hubris, Amethyst Ring, Heavy Belt, Two-Stone Ring, Uncut");
     public ToggleNode BuyNormal { get; set; } = new ToggleNode(true);
     public ToggleNode BuyMagic { get; set; } = new ToggleNode(true);
     public ToggleNode BuyRare { get; set; } = new ToggleNode(true);

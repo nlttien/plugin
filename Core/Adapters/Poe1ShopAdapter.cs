@@ -101,8 +101,13 @@ public class Poe1ShopAdapter : IShopAdapter
                     }
                     else
                     {
-                        // Fallback parsing from path
                         itemInfo.BaseName = ParseBaseNameFromPath(itemInfo.ItemPath);
+                    }
+
+                    // Identify Timeless Jewels from path if base name was generic
+                    if (itemInfo.ItemPath.Contains("JewelPassiveTreeExpansion", StringComparison.OrdinalIgnoreCase))
+                    {
+                        itemInfo.BaseName = "Timeless Jewel";
                     }
 
                     // Mods Component
@@ -129,6 +134,30 @@ public class Poe1ShopAdapter : IShopAdapter
                     {
                         itemInfo.Quality = qualityComp.ItemQuality;
                     }
+
+                    // Try parse cost from item children or tooltip
+                    try
+                    {
+                        if (invItem.Children != null)
+                        {
+                            foreach (var child in invItem.Children)
+                            {
+                                if (child != null && child.IsValid && child.IsVisible && !string.IsNullOrWhiteSpace(child.Text))
+                                {
+                                    var txt = child.Text.Trim();
+                                    if (txt.Contains("Cost", StringComparison.OrdinalIgnoreCase) ||
+                                        txt.Contains("Gold", StringComparison.OrdinalIgnoreCase) ||
+                                        txt.Contains("Orb", StringComparison.OrdinalIgnoreCase) ||
+                                        txt.Contains("x ", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        itemInfo.CostString = txt;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
                 }
                 else
                 {
@@ -188,6 +217,7 @@ public class Poe1ShopAdapter : IShopAdapter
             var purchaseWindow = (ingameUi?.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi?.PurchaseWindowHideout);
             if (purchaseWindow?.TabContainer == null) return false;
 
+            // Check if tab buttons element exists
             var tabList = purchaseWindow.TabContainer.TabSwitchBar;
             if (tabList != null && tabList.IsValid && tabList.Children != null && tabIndex < tabList.Children.Count)
             {

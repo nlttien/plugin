@@ -52,20 +52,38 @@ public static class ItemFilterEngine
             return false;
         }
 
-        // 7. Check Base Name Keywords
+        // 7. Check Base Name / Jewel Keywords
         if (!string.IsNullOrWhiteSpace(rule.BaseNameFilter))
         {
             var keywords = rule.BaseNameFilter.Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
             var itemBase = item.BaseName ?? string.Empty;
             var itemName = item.Name ?? string.Empty;
+            var itemPath = item.ItemPath ?? string.Empty;
 
             var matchesKeyword = keywords.Any(k =>
             {
                 var trimmed = k.Trim();
-                return !string.IsNullOrEmpty(trimmed) && (
-                    itemBase.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ||
-                    itemName.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
-                );
+                if (string.IsNullOrEmpty(trimmed)) return false;
+
+                // Handle Timeless Jewels match keywords
+                if (trimmed.Equals("Timeless Jewel", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.Equals("Timeless", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (itemBase.Contains("Timeless", StringComparison.OrdinalIgnoreCase) ||
+                        itemPath.Contains("JewelPassiveTreeExpansion", StringComparison.OrdinalIgnoreCase) ||
+                        itemName.Contains("Brutal Restraint", StringComparison.OrdinalIgnoreCase) ||
+                        itemName.Contains("Glorious Vanity", StringComparison.OrdinalIgnoreCase) ||
+                        itemName.Contains("Lethal Pride", StringComparison.OrdinalIgnoreCase) ||
+                        itemName.Contains("Militant Faith", StringComparison.OrdinalIgnoreCase) ||
+                        itemName.Contains("Elegant Hubris", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+
+                return itemBase.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ||
+                       itemName.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ||
+                       itemPath.Contains(trimmed, StringComparison.OrdinalIgnoreCase);
             });
 
             if (!matchesKeyword) return false;

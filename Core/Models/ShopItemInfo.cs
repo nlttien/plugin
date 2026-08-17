@@ -19,6 +19,7 @@ public class ShopItemInfo
     public bool IsRgb { get; set; } = false;
 
     public CurrencyCost? Cost { get; set; }
+    public string CostString { get; set; } = string.Empty;
 
     public int TabIndex { get; set; } = 0;
     public string TabName { get; set; } = string.Empty;
@@ -32,4 +33,8 @@ public class ShopItemInfo
     public Vector2 ClickPosition { get; set; }
 
     public NormalInventoryItem? InventoryItem { get; set; }
+
+    public string DisplayName => string.IsNullOrWhiteSpace(Name) || Name == BaseName 
+        ? BaseName 
+        : $"{Name} ({BaseName})";
 }
