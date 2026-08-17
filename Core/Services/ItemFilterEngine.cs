@@ -47,47 +47,39 @@ public static class ItemFilterEngine
             if (!matchedSeed) return false;
         }
 
-        // 4. KIỂM TRA CHẶT CHẼ ĐƠN VỊ TIỀN VÀ GIÁ (TỪ CHỐI 100% DIVINE)
-        if (!string.IsNullOrEmpty(item.CostString))
+        // 4. KIỂM TRA CHẶT CHẼ GIÁ: TỪ CHỐI 100% TẤT CẢ MÓN GIÁ DIVINE ORB!
+        // CHỈ MUA VÀ HIỆN XANH CÁC MÓN BÁN BẰNG CHAOS ORB TỪ 10 ĐẾN 50 CHAOS!
+        if (!string.IsNullOrEmpty(item.CostString) && item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase))
         {
-            if (item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase) && settings.BuyDivinePrice?.Value != true)
+            return false;
+        }
+
+        if (item.Cost != null)
+        {
+            var curr = item.Cost.CurrencyName ?? string.Empty;
+
+            // BẮT BUỘC TỪ CHỐI BẤT KỲ MÓN NÀO CÓ GIÁ DIVINE
+            if (curr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
-        }
 
-        if (item.Cost != null && !string.IsNullOrWhiteSpace(item.Cost.CurrencyName))
-        {
-            var curr = item.Cost.CurrencyName;
-
-            // NẾU LÀ DIVINE ORB
-            if (curr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
-            {
-                if (settings.BuyDivinePrice?.Value != true) return false;
-
-                var maxDivine = settings.MaxDivinePrice?.Value ?? 0;
-                if (maxDivine <= 0 || item.Cost.Amount > maxDivine)
-                {
-                    return false;
-                }
-            }
-            // NẾU LÀ CHAOS ORB
-            else if (curr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
+            // CHỈ CHẤP NHẬN CHAOS ORB TRONG KHOẢNG 10 - 50 CHAOS
+            if (curr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
             {
                 if (settings.BuyChaosPrice?.Value == false) return false;
 
                 var minChaos = settings.MinChaosPrice?.Value ?? 10;
                 var maxChaos = settings.MaxChaosPrice?.Value ?? 50;
 
-                // Bắt buộc giá phải nằm trong khoảng 10 đến 50 Chaos
                 if (item.Cost.Amount < minChaos || (maxChaos > 0 && item.Cost.Amount > maxChaos))
                 {
                     return false;
                 }
             }
-            else
+            else if (!string.IsNullOrWhiteSpace(curr))
             {
-                // Bỏ qua các loại tiền tệ khác
+                // Bỏ qua các loại tiền tệ khác không phải Chaos
                 return false;
             }
 

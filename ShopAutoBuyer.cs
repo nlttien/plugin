@@ -41,6 +41,8 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         {
             if (Settings.OkButtonX.Value == 787) Settings.OkButtonX.Value = 750;
             if (Settings.OkButtonY.Value == 545) Settings.OkButtonY.Value = 575;
+            if (Settings.BuyDivinePrice != null) Settings.BuyDivinePrice.Value = false;
+            if (Settings.MaxDivinePrice != null) Settings.MaxDivinePrice.Value = 0;
         }
 
         // Gan su kien cho nut dung khan cap trong menu
@@ -281,7 +283,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
         if (isShopOpen)
         {
-            var detectedText = $"Shop: MO | Tim thay: {_cachedMatchingItems.Count} Timeless Jewel";
+            var detectedText = $"Shop: MO | Hop le: {_cachedMatchingItems.Count} (Chaos 10-50c)";
             Graphics.DrawText(detectedText, new Vector2(boxX + 12, currentY), Color.LimeGreen);
             currentY += 20;
 
