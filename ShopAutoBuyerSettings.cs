@@ -31,10 +31,17 @@ public class ShopAutoBuyerSettings : ISettings
     public ToggleNode BuyMilitantFaith { get; set; } = new ToggleNode(true);
     public ToggleNode BuyElegantHubris { get; set; } = new ToggleNode(true);
 
+    // PRICE FILTERS (10 to 50 Chaos)
+    public ToggleNode BuyChaosPrice { get; set; } = new ToggleNode(true);
+    public RangeNode<int> MinChaosPrice { get; set; } = new RangeNode<int>(10, 0, 500);
+    public RangeNode<int> MaxChaosPrice { get; set; } = new RangeNode<int>(50, 0, 500);
+
+    public ToggleNode BuyDivinePrice { get; set; } = new ToggleNode(true);
+    public RangeNode<int> MaxDivinePrice { get; set; } = new RangeNode<int>(5, 0, 50);
+    public RangeNode<int> MaxGoldPrice { get; set; } = new RangeNode<int>(50000, 0, 500000);
+
     public TextNode LeaderFilter { get; set; } = new TextNode("");
     public TextNode SpecificSeeds { get; set; } = new TextNode("");
-    public RangeNode<int> MaxDivinePrice { get; set; } = new RangeNode<int>(0, 0, 50);
-    public RangeNode<int> MaxGoldPrice { get; set; } = new RangeNode<int>(0, 0, 500000);
 
     // Visuals & Display Style
     public ListNode LabelMode { get; set; } = new ListNode

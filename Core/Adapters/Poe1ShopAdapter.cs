@@ -321,7 +321,37 @@ public class Poe1ShopAdapter : IShopAdapter
 
                 if (costParts.Count > 0)
                 {
-                    itemInfo.CostString = string.Join(", ", costParts);
+                    var fullCostStr = string.Join(", ", costParts);
+                    itemInfo.CostString = fullCostStr;
+
+                    if (itemInfo.Cost == null) itemInfo.Cost = new CurrencyCost();
+
+                    // Parse Chaos Orb amount (e.g. "48x Chaos Orb" or "48 Chaos" or "10x Chaos")
+                    var chaosMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
+                    if (chaosMatch.Success && int.TryParse(chaosMatch.Groups[1].Value, out var chaosAmt))
+                    {
+                        itemInfo.Cost.CurrencyName = "Chaos Orb";
+                        itemInfo.Cost.Amount = chaosAmt;
+                    }
+
+                    // Parse Divine Orb amount (e.g. "1x Divine Orb" or "5x Divine")
+                    var divineMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Divine", RegexOptions.IgnoreCase);
+                    if (divineMatch.Success && int.TryParse(divineMatch.Groups[1].Value, out var divAmt))
+                    {
+                        itemInfo.Cost.CurrencyName = "Divine Orb";
+                        itemInfo.Cost.Amount = divAmt;
+                    }
+
+                    // Parse Gold amount (e.g. "4,480 Gold" or "10,920 Gold")
+                    var goldMatch = Regex.Match(fullCostStr, @"([\d,]+)\s*Gold", RegexOptions.IgnoreCase);
+                    if (goldMatch.Success)
+                    {
+                        var goldDigits = goldMatch.Groups[1].Value.Replace(",", "");
+                        if (int.TryParse(goldDigits, out var goldAmt))
+                        {
+                            itemInfo.Cost.GoldAmount = goldAmt;
+                        }
+                    }
                 }
             }
         }

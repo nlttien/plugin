@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using ExileCore;
 using ExileCore.Shared;
@@ -36,6 +37,8 @@ public class PurchaseExecutor
         IsRunning = true;
         LogHelper.Info("=== Bắt đầu tiến trình tự động mua đồ trong Shop ===");
 
+        var totalPurchasedCount = 0;
+
         try
         {
             var versionStr = _settings.GameVersion?.Value ?? "AutoDetect";
@@ -50,8 +53,6 @@ public class PurchaseExecutor
             var tabCount = _settings.ScanAllTabs.Value ? adapter.GetTabCount(_gc) : 1;
             var startTabIndex = _settings.ScanAllTabs.Value ? 0 : adapter.GetCurrentTabIndex(_gc);
             var endTabIndex = _settings.ScanAllTabs.Value ? tabCount : startTabIndex + 1;
-
-            var totalPurchasedCount = 0;
 
             for (var tabIndex = startTabIndex; tabIndex < endTabIndex; tabIndex++)
             {
@@ -111,7 +112,7 @@ public class PurchaseExecutor
                     // 3. Thực hiện thao tác Ctrl + Left Click để mua
                     MouseHelper.CtrlLeftClick();
                     totalPurchasedCount++;
-                    LogHelper.Info($"[ĐÃ MUA] {item.DisplayName} (Vị trí: [{item.SlotX + 1},{item.SlotY + 1}])");
+                    LogHelper.Info($"[ĐÃ MUA] {item.DisplayName} (Giá: {item.CostString})");
 
                     // 4. Nghỉ ngơi giữa các lần bấm chuột để giống thao tác người thật
                     yield return new WaitTime(MouseHelper.GetRandomDelay(_settings.MinDelayMs.Value, _settings.MaxDelayMs.Value));
@@ -123,6 +124,14 @@ public class PurchaseExecutor
         finally
         {
             IsRunning = false;
+            // Write bridge status for web trade automation
+            try
+            {
+                var bridgeFile = @"D:\codecuatien\trade_bridge.json";
+                var json = $"{{\"status\":\"COMPLETED\",\"items_bought\":{totalPurchasedCount},\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
+                File.WriteAllText(bridgeFile, json);
+            }
+            catch { }
         }
     }
 }

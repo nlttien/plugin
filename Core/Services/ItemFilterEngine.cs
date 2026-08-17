@@ -47,20 +47,40 @@ public static class ItemFilterEngine
             if (!matchedSeed) return false;
         }
 
-        // 4. Filter by Max Divine Price
-        var maxDivine = settings.MaxDivinePrice?.Value ?? 0;
-        if (maxDivine > 0 && item.Cost != null)
+        // 4. Check Price Limits (10 to 50 Chaos Orb, Divine limits, Gold limits)
+        if (item.Cost != null)
         {
-            if (item.Cost.CurrencyName.Contains("Divine", StringComparison.OrdinalIgnoreCase) && item.Cost.Amount > maxDivine)
-                return false;
-        }
+            var curr = item.Cost.CurrencyName ?? string.Empty;
 
-        // 5. Filter by Max Gold Price
-        var maxGold = settings.MaxGoldPrice?.Value ?? 0;
-        if (maxGold > 0 && item.Cost != null)
-        {
-            if (item.Cost.IsGold && item.Cost.Amount > maxGold)
+            if (curr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
+            {
+                if (settings.BuyChaosPrice?.Value == false) return false;
+
+                var minChaos = settings.MinChaosPrice?.Value ?? 10;
+                var maxChaos = settings.MaxChaosPrice?.Value ?? 50;
+
+                if (item.Cost.Amount < minChaos || (maxChaos > 0 && item.Cost.Amount > maxChaos))
+                {
+                    return false;
+                }
+            }
+            else if (curr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
+            {
+                if (settings.BuyDivinePrice?.Value == false) return false;
+
+                var maxDivine = settings.MaxDivinePrice?.Value ?? 0;
+                if (maxDivine > 0 && item.Cost.Amount > maxDivine)
+                {
+                    return false;
+                }
+            }
+
+            // Check Gold Limit
+            var maxGold = settings.MaxGoldPrice?.Value ?? 0;
+            if (maxGold > 0 && item.Cost.GoldAmount > maxGold)
+            {
                 return false;
+            }
         }
 
         return true;
