@@ -8,12 +8,69 @@ namespace ShopAutoBuyer.Core.Services;
 
 public static class ItemFilterEngine
 {
+    public static bool MatchesTimelessSettings(ShopItemInfo item, ShopAutoBuyerSettings settings)
+    {
+        if (item == null || settings == null) return false;
+        if (!item.IsTimelessJewel) return false;
+
+        var name = item.Name ?? string.Empty;
+
+        // 1. Filter by Jewel Type
+        if (name.Contains("Brutal Restraint", StringComparison.OrdinalIgnoreCase) && settings.BuyBrutalRestraint?.Value == false)
+            return false;
+        if (name.Contains("Glorious Vanity", StringComparison.OrdinalIgnoreCase) && settings.BuyGloriousVanity?.Value == false)
+            return false;
+        if (name.Contains("Lethal Pride", StringComparison.OrdinalIgnoreCase) && settings.BuyLethalPride?.Value == false)
+            return false;
+        if (name.Contains("Militant Faith", StringComparison.OrdinalIgnoreCase) && settings.BuyMilitantFaith?.Value == false)
+            return false;
+        if (name.Contains("Elegant Hubris", StringComparison.OrdinalIgnoreCase) && settings.BuyElegantHubris?.Value == false)
+            return false;
+
+        // 2. Filter by Leader (e.g. Asenath, Balbala, Kaom, Doryani)
+        var leaderFilter = settings.LeaderFilter?.Value?.Trim();
+        if (!string.IsNullOrEmpty(leaderFilter))
+        {
+            var leaders = leaderFilter.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            var itemLeader = item.TimelessLeader ?? string.Empty;
+            var matchedLeader = leaders.Any(l => itemLeader.Contains(l.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (!matchedLeader) return false;
+        }
+
+        // 3. Filter by Specific Seeds (e.g. 3693, 5834)
+        var seedsFilter = settings.SpecificSeeds?.Value?.Trim();
+        if (!string.IsNullOrEmpty(seedsFilter))
+        {
+            var seeds = seedsFilter.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            var itemSeedStr = item.TimelessSeed.ToString();
+            var matchedSeed = seeds.Any(s => s.Trim() == itemSeedStr);
+            if (!matchedSeed) return false;
+        }
+
+        // 4. Filter by Max Divine Price
+        var maxDivine = settings.MaxDivinePrice?.Value ?? 0;
+        if (maxDivine > 0 && item.Cost != null)
+        {
+            if (item.Cost.CurrencyType == "Divine Orb" && item.Cost.Amount > maxDivine)
+                return false;
+        }
+
+        // 5. Filter by Max Gold Price
+        var maxGold = settings.MaxGoldPrice?.Value ?? 0;
+        if (maxGold > 0 && item.Cost != null)
+        {
+            if (item.Cost.IsGold && item.Cost.Amount > maxGold)
+                return false;
+        }
+
+        return true;
+    }
+
     public static bool MatchesRule(ShopItemInfo item, FilterRule rule)
     {
         if (item == null || rule == null || !rule.Enabled) return false;
 
-        // Special handling for Timeless Jewel Exclusive Mode
-        if (rule.Name == "Timeless Jewel Exclusive")
+        if (rule.Name == "Timeless Jewel Mode")
         {
             return item.IsTimelessJewel;
         }
@@ -58,7 +115,7 @@ public static class ItemFilterEngine
             return false;
         }
 
-        // 7. Check Base Name / Jewel Keywords
+        // 7. Check Base Name Keywords
         if (!string.IsNullOrWhiteSpace(rule.BaseNameFilter))
         {
             var keywords = rule.BaseNameFilter.Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
@@ -71,23 +128,6 @@ public static class ItemFilterEngine
                 var trimmed = k.Trim();
                 if (string.IsNullOrEmpty(trimmed)) return false;
 
-                // Handle Timeless Jewels match keywords
-                if (trimmed.Equals("Timeless Jewel", StringComparison.OrdinalIgnoreCase) ||
-                    trimmed.Equals("Timeless", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (item.IsTimelessJewel ||
-                        itemBase.Contains("Timeless", StringComparison.OrdinalIgnoreCase) ||
-                        itemPath.Contains("JewelPassiveTreeExpansion", StringComparison.OrdinalIgnoreCase) ||
-                        itemName.Contains("Brutal Restraint", StringComparison.OrdinalIgnoreCase) ||
-                        itemName.Contains("Glorious Vanity", StringComparison.OrdinalIgnoreCase) ||
-                        itemName.Contains("Lethal Pride", StringComparison.OrdinalIgnoreCase) ||
-                        itemName.Contains("Militant Faith", StringComparison.OrdinalIgnoreCase) ||
-                        itemName.Contains("Elegant Hubris", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
-                }
-
                 return itemBase.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ||
                        itemName.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ||
                        itemPath.Contains(trimmed, StringComparison.OrdinalIgnoreCase);
@@ -96,25 +136,6 @@ public static class ItemFilterEngine
             if (!matchesKeyword) return false;
         }
 
-        // 8. Check Max Price (if set)
-        if (rule.CheckMaxPrice && item.Cost != null)
-        {
-            if (item.Cost.IsGold && item.Cost.Amount > rule.MaxGoldCost)
-            {
-                return false;
-            }
-            if (!item.Cost.IsGold && item.Cost.Amount > rule.MaxOrbCost)
-            {
-                return false;
-            }
-        }
-
         return true;
-    }
-
-    public static bool MatchesAnyRule(ShopItemInfo item, IEnumerable<FilterRule> rules)
-    {
-        if (rules == null) return false;
-        return rules.Any(r => MatchesRule(item, r));
     }
 }

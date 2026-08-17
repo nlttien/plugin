@@ -9,7 +9,7 @@ namespace ShopAutoBuyer;
 
 public class ShopAutoBuyerSettings : ISettings
 {
-    public ToggleNode Enable { get; set; } = new ToggleNode(false);
+    public ToggleNode Enable { get; set; } = new ToggleNode(true);
 
     public ListNode GameVersion { get; set; } = new ListNode
     {
@@ -23,22 +23,34 @@ public class ShopAutoBuyerSettings : ISettings
     public ToggleNode HighlightOnlyMode { get; set; } = new ToggleNode(false);
     public ToggleNode ShowStatusBox { get; set; } = new ToggleNode(true);
 
-    // TIMELESS JEWEL SPECIFIC MODE
+    // TIMELESS JEWEL SPECIFIC SETTINGS
     public ToggleNode OnlyBuyTimelessJewels { get; set; } = new ToggleNode(true);
-    public TextNode TimelessJewelLeaders { get; set; } = new TextNode("");
-    public RangeNode<int> TimelessMinSeed { get; set; } = new RangeNode<int>(0, 0, 100000);
-    public RangeNode<int> TimelessMaxSeed { get; set; } = new RangeNode<int>(0, 0, 100000);
+    public ToggleNode BuyBrutalRestraint { get; set; } = new ToggleNode(true);
+    public ToggleNode BuyGloriousVanity { get; set; } = new ToggleNode(true);
+    public ToggleNode BuyLethalPride { get; set; } = new ToggleNode(true);
+    public ToggleNode BuyMilitantFaith { get; set; } = new ToggleNode(true);
+    public ToggleNode BuyElegantHubris { get; set; } = new ToggleNode(true);
+
+    public TextNode LeaderFilter { get; set; } = new TextNode("");
+    public TextNode SpecificSeeds { get; set; } = new TextNode("");
+    public RangeNode<int> MaxDivinePrice { get; set; } = new RangeNode<int>(0, 0, 50);
+    public RangeNode<int> MaxGoldPrice { get; set; } = new RangeNode<int>(0, 0, 500000);
+
+    // Visuals & Display Style
+    public ListNode LabelMode { get; set; } = new ListNode
+    {
+        Values = new List<string> { "Compact (Seed Only)", "Full Name", "Border Only" },
+        Value = "Compact (Seed Only)"
+    };
+    public ColorNode HighlightColor { get; set; } = new ColorNode(Color.LimeGreen);
+    public RangeNode<int> BorderThickness { get; set; } = new RangeNode<int>(2, 1, 8);
 
     // Delays
     public RangeNode<int> MinDelayMs { get; set; } = new RangeNode<int>(100, 30, 1000);
     public RangeNode<int> MaxDelayMs { get; set; } = new RangeNode<int>(220, 50, 2000);
 
-    // Visuals
-    public ColorNode HighlightColor { get; set; } = new ColorNode(Color.LimeGreen);
-    public RangeNode<int> BorderThickness { get; set; } = new RangeNode<int>(3, 1, 8);
-
-    // General Filter Rules (Used when OnlyBuyTimelessJewels is false)
-    public TextNode BaseNamesFilter { get; set; } = new TextNode("Timeless Jewel, Brutal Restraint, Glorious Vanity, Lethal Pride, Militant Faith, Elegant Hubris");
+    // General Whitelist (Used only when OnlyBuyTimelessJewels is FALSE)
+    public TextNode BaseNamesFilter { get; set; } = new TextNode("Amethyst Ring, Heavy Belt, Two-Stone Ring, Uncut");
     public ToggleNode BuyNormal { get; set; } = new ToggleNode(true);
     public ToggleNode BuyMagic { get; set; } = new ToggleNode(true);
     public ToggleNode BuyRare { get; set; } = new ToggleNode(true);
@@ -53,84 +65,37 @@ public class ShopAutoBuyerSettings : ISettings
     {
         var rules = new List<FilterRule>();
 
-        // If Timeless Jewel exclusive mode is ON:
         if (OnlyBuyTimelessJewels?.Value == true)
         {
             rules.Add(new FilterRule
             {
                 Enabled = true,
-                Name = "Timeless Jewel Exclusive",
+                Name = "Timeless Jewel Mode",
                 BaseNameFilter = "Timeless Jewel",
                 MatchNormal = true,
                 MatchMagic = true,
                 MatchRare = true,
-                MatchUnique = true,
-                MinItemLevel = 0,
-                MinQuality = 0,
-                MinSockets = 0,
-                MinLinks = 0,
-                RequireRgbSockets = false
+                MatchUnique = true
             });
             return rules;
         }
 
-        // Otherwise use general user filter
         var baseFilter = BaseNamesFilter?.Value ?? string.Empty;
-        var buyNorm = BuyNormal?.Value ?? true;
-        var buyMag = BuyMagic?.Value ?? true;
-        var buyRar = BuyRare?.Value ?? true;
-        var buyUniq = BuyUnique?.Value ?? true;
-        var minIlvl = MinItemLevel?.Value ?? 0;
-        var minQual = MinQuality?.Value ?? 0;
-        var minSock = MinSockets?.Value ?? 0;
-        var minLink = MinLinks?.Value ?? 0;
-        var buyRgb = BuyRgbChromatic?.Value ?? false;
-
         rules.Add(new FilterRule
         {
             Enabled = true,
             Name = "User Filter",
             BaseNameFilter = baseFilter,
-            MatchNormal = buyNorm,
-            MatchMagic = buyMag,
-            MatchRare = buyRar,
-            MatchUnique = buyUniq,
-            MinItemLevel = minIlvl,
-            MinQuality = minQual,
-            MinSockets = minSock,
-            MinLinks = minLink,
-            RequireRgbSockets = buyRgb
+            MatchNormal = BuyNormal?.Value ?? true,
+            MatchMagic = BuyMagic?.Value ?? true,
+            MatchRare = BuyRare?.Value ?? true,
+            MatchUnique = BuyUnique?.Value ?? true,
+            MinItemLevel = MinItemLevel?.Value ?? 0,
+            MinQuality = MinQuality?.Value ?? 0,
+            MinSockets = MinSockets?.Value ?? 0,
+            MinLinks = MinLinks?.Value ?? 0,
+            RequireRgbSockets = BuyRgbChromatic?.Value ?? false
         });
-
-        if (buyRgb)
-        {
-            rules.Add(new FilterRule
-            {
-                Enabled = true,
-                Name = "RGB Chromatic Recipe",
-                BaseNameFilter = string.Empty,
-                MatchNormal = true,
-                MatchMagic = true,
-                MatchRare = true,
-                MatchUnique = false,
-                RequireRgbSockets = true
-            });
-        }
-
-        if (minSock >= 6)
-        {
-            rules.Add(new FilterRule
-            {
-                Enabled = true,
-                Name = "6 Sockets Recipe",
-                BaseNameFilter = string.Empty,
-                MatchNormal = true,
-                MatchMagic = true,
-                MatchRare = true,
-                MatchUnique = false,
-                MinSockets = 6
-            });
-        }
 
         return rules;
     }

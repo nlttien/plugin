@@ -125,10 +125,20 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     if (currentItems != null && currentItems.Count > 0)
                     {
                         _cachedAllItems = currentItems;
-                        var activeRules = Settings.GetActiveRules();
-                        _cachedMatchingItems = currentItems
-                            .Where(item => item != null && ItemFilterEngine.MatchesAnyRule(item, activeRules))
-                            .ToList();
+                        
+                        if (Settings.OnlyBuyTimelessJewels?.Value == true)
+                        {
+                            _cachedMatchingItems = currentItems
+                                .Where(item => item != null && ItemFilterEngine.MatchesTimelessSettings(item, Settings))
+                                .ToList();
+                        }
+                        else
+                        {
+                            var activeRules = Settings.GetActiveRules();
+                            _cachedMatchingItems = currentItems
+                                .Where(item => item != null && activeRules.Any(r => ItemFilterEngine.MatchesRule(item, r)))
+                                .ToList();
+                        }
                     }
                     else
                     {
@@ -137,11 +147,12 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     }
                 }
 
-                // 1. Ve Highlight len cac item dat dieu kien trong shop
+                // 1. Ve Highlight len cac item dat dieu kien trong shop (Tranh de chu)
                 if (_cachedMatchingItems.Count > 0)
                 {
                     var color = Settings?.HighlightColor?.Value ?? Color.LimeGreen;
-                    var border = Settings?.BorderThickness?.Value ?? 3;
+                    var border = Settings?.BorderThickness?.Value ?? 2;
+                    var labelMode = Settings?.LabelMode?.Value ?? "Compact (Seed Only)";
 
                     foreach (var item in _cachedMatchingItems)
                     {
@@ -152,10 +163,20 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                         // Ve khung vien highlight
                         Graphics.DrawFrame(rect, color, border);
 
-                        // Ve nhan ten vat pham
-                        var labelText = $"BUY: {item.DisplayName}";
-                        var textPos = new Vector2(rect.Left + 2, rect.Top - 16);
-                        Graphics.DrawText(labelText, textPos, color);
+                        // Ve chu theo tuy chon LabelMode
+                        if (labelMode == "Compact (Seed Only)")
+                        {
+                            var compactLabel = item.TimelessSeed > 0 ? $"{item.TimelessSeed}" : "BUY";
+                            var textPos = new Vector2(rect.Left + 2, rect.Top + 2);
+                            Graphics.DrawText(compactLabel, textPos, Color.Yellow);
+                        }
+                        else if (labelMode == "Full Name")
+                        {
+                            var labelText = $"BUY: {item.DisplayName}";
+                            var textPos = new Vector2(rect.Left + 2, rect.Top - 14);
+                            Graphics.DrawText(labelText, textPos, color);
+                        }
+                        // "Border Only": Khong ve chu len o, chi ve vien
                     }
                 }
             }
@@ -190,7 +211,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         var totalCount = _cachedAllItems.Count;
 
         // Tinh chieu cao dong dua tren so item tim thay
-        var dynamicHeight = 75f + (matchingCount > 0 ? Math.Min(5, matchingCount) * 44f : 22f);
+        var dynamicHeight = 75f + (matchingCount > 0 ? Math.Min(6, matchingCount) * 44f : 22f);
         var bgRect = new RectangleF(boxX, boxY, boxWidth, dynamicHeight);
 
         // Nen toi ban trong suot
@@ -198,8 +219,11 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         Graphics.DrawFrame(bgRect, isShopOpen ? Color.LimeGreen : Color.DarkGray, 2);
 
         // Tieu de
+        var isTimelessMode = Settings?.OnlyBuyTimelessJewels?.Value == true;
         var titleColor = isShopOpen ? Color.LimeGreen : Color.LightGray;
-        var titleText = isShopOpen ? "[ShopAutoBuyer] SHOP DANG MO" : "[ShopAutoBuyer] CHO MO SHOP NPC";
+        var titleText = isShopOpen 
+            ? (isTimelessMode ? "[ShopAutoBuyer] TIMELESS JEWEL MODE" : "[ShopAutoBuyer] SHOP DANG MO")
+            : "[ShopAutoBuyer] CHO MO SHOP NPC";
         Graphics.DrawText(titleText, new Vector2(boxX + 12, boxY + 10), titleColor);
 
         var currentY = boxY + 30;
@@ -211,7 +235,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
             if (matchingCount > 0)
             {
-                for (var i = 0; i < Math.Min(5, matchingCount); i++)
+                for (var i = 0; i < Math.Min(6, matchingCount); i++)
                 {
                     var item = _cachedMatchingItems[i];
                     var itemName = $"* {item.DisplayName} [O {item.SlotX + 1},{item.SlotY + 1}]";
@@ -220,7 +244,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
                     var costInfo = !string.IsNullOrWhiteSpace(item.CostString) 
                         ? $"  Gia: {item.CostString}" 
-                        : $"  Do hiem: {item.Rarity} | ilvl: {item.ItemLevel}";
+                        : $"  Seed: {item.TimelessSeed} | Leader: {item.TimelessLeader}";
                     Graphics.DrawText(costInfo, new Vector2(boxX + 14, currentY), Color.LightCyan);
                     currentY += 22;
                 }
