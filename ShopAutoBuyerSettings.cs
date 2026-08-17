@@ -46,23 +46,34 @@ public class ShopAutoBuyerSettings : ISettings
     {
         var rules = new List<FilterRule>();
 
+        var baseFilter = BaseNamesFilter?.Value ?? string.Empty;
+        var buyNorm = BuyNormal?.Value ?? true;
+        var buyMag = BuyMagic?.Value ?? true;
+        var buyRar = BuyRare?.Value ?? true;
+        var buyUniq = BuyUnique?.Value ?? true;
+        var minIlvl = MinItemLevel?.Value ?? 0;
+        var minQual = MinQuality?.Value ?? 0;
+        var minSock = MinSockets?.Value ?? 0;
+        var minLink = MinLinks?.Value ?? 0;
+        var buyRgb = BuyRgbChromatic?.Value ?? false;
+
         rules.Add(new FilterRule
         {
             Enabled = true,
             Name = "User Filter",
-            BaseNameFilter = BaseNamesFilter.Value,
-            MatchNormal = BuyNormal.Value,
-            MatchMagic = BuyMagic.Value,
-            MatchRare = BuyRare.Value,
-            MatchUnique = BuyUnique.Value,
-            MinItemLevel = MinItemLevel.Value,
-            MinQuality = MinQuality.Value,
-            MinSockets = MinSockets.Value,
-            MinLinks = MinLinks.Value,
-            RequireRgbSockets = BuyRgbChromatic.Value
+            BaseNameFilter = baseFilter,
+            MatchNormal = buyNorm,
+            MatchMagic = buyMag,
+            MatchRare = buyRar,
+            MatchUnique = buyUniq,
+            MinItemLevel = minIlvl,
+            MinQuality = minQual,
+            MinSockets = minSock,
+            MinLinks = minLink,
+            RequireRgbSockets = buyRgb
         });
 
-        if (BuyRgbChromatic.Value)
+        if (buyRgb)
         {
             rules.Add(new FilterRule
             {
@@ -77,7 +88,7 @@ public class ShopAutoBuyerSettings : ISettings
             });
         }
 
-        if (MinSockets.Value >= 6)
+        if (minSock >= 6)
         {
             rules.Add(new FilterRule
             {

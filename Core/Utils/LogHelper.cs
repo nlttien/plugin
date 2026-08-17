@@ -25,7 +25,7 @@ public static class LogHelper
 
     public static void Error(string message, Exception? ex = null)
     {
-        var msg = ex != null ? $"{Prefix}[ERROR] {message}: {ex.Message}" : $"{Prefix}[ERROR] {message}";
+        var msg = ex != null ? $"{Prefix}[ERROR] {message}: {ex}" : $"{Prefix}[ERROR] {message}";
         DebugWindow.LogError(msg, 7f);
     }
 }

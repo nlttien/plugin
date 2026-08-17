@@ -20,7 +20,8 @@ public class Poe2ShopAdapter : IShopAdapter
     {
         try
         {
-            var ingameUi = gc?.Game?.IngameState?.IngameUi;
+            if (gc == null) return false;
+            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
             if (ingameUi == null) return false;
 
             // Check standard Purchase windows or PoE 2 vendor panels
@@ -59,7 +60,8 @@ public class Poe2ShopAdapter : IShopAdapter
         var result = new List<ShopItemInfo>();
         try
         {
-            var ingameUi = gc?.Game?.IngameState?.IngameUi;
+            if (gc == null) return result;
+            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
             if (ingameUi == null) return result;
 
             // 1. Check primary purchase window
@@ -67,9 +69,16 @@ public class Poe2ShopAdapter : IShopAdapter
             if (purchaseWindow != null && purchaseWindow.IsValid && purchaseWindow.IsVisible)
             {
                 var tabContainer = purchaseWindow.TabContainer;
-                var items = (tabContainer != null && tabContainer.IsValid) 
-                    ? tabContainer.VisibleStash?.VisibleInventoryItems 
-                    : null;
+                IList<NormalInventoryItem>? items = null;
+
+                if (tabContainer != null && tabContainer.IsValid)
+                {
+                    var visibleStash = tabContainer.VisibleStash;
+                    if (visibleStash != null && visibleStash.IsValid)
+                    {
+                        items = visibleStash.VisibleInventoryItems;
+                    }
+                }
 
                 if (items != null)
                 {
@@ -98,7 +107,8 @@ public class Poe2ShopAdapter : IShopAdapter
     {
         try
         {
-            var ingameUi = gc?.Game?.IngameState?.IngameUi;
+            if (gc == null) return 1;
+            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
             var purchaseWindow = (ingameUi?.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi?.PurchaseWindowHideout);
             var tabCount = purchaseWindow?.TabContainer?.TotalStashes ?? 0L;
             return tabCount > 0 ? (int)tabCount : 1;
@@ -113,7 +123,8 @@ public class Poe2ShopAdapter : IShopAdapter
     {
         try
         {
-            var ingameUi = gc?.Game?.IngameState?.IngameUi;
+            if (gc == null) return 0;
+            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
             var purchaseWindow = (ingameUi?.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi?.PurchaseWindowHideout);
             return (int)(purchaseWindow?.TabContainer?.VisibleStashIndex ?? 0);
         }
@@ -127,7 +138,8 @@ public class Poe2ShopAdapter : IShopAdapter
     {
         try
         {
-            var ingameUi = gc?.Game?.IngameState?.IngameUi;
+            if (gc == null) return false;
+            var ingameUi = gc.IngameState?.IngameUi ?? gc.Game?.IngameState?.IngameUi;
             var purchaseWindow = (ingameUi?.PurchaseWindow?.IsVisible == true ? ingameUi.PurchaseWindow : ingameUi?.PurchaseWindowHideout);
             if (purchaseWindow?.TabContainer == null) return false;
 

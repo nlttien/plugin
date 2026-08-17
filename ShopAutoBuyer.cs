@@ -15,8 +15,8 @@ namespace ShopAutoBuyer;
 
 public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 {
-    private ShopAdapterFactory _adapterFactory = null!;
-    private PurchaseExecutor _purchaseExecutor = null!;
+    private ShopAdapterFactory _adapterFactory = new ShopAdapterFactory();
+    private PurchaseExecutor? _purchaseExecutor;
     private bool _wasShopOpenLastFrame;
     private List<ShopItemInfo> _cachedMatchingItems = new List<ShopItemInfo>();
     private DateTime _lastScanTime = DateTime.MinValue;
@@ -25,7 +25,10 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     {
         Name = "Shop Auto Buyer (PoE 1 & 2)";
         _adapterFactory = new ShopAdapterFactory();
-        _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
+        if (GameController != null && Settings != null)
+        {
+            _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
+        }
 
         LogHelper.Info("Plugin ShopAutoBuyer đã khởi tạo thành công (Hỗ trợ PoE 1 & PoE 2).");
         return true;
@@ -33,19 +36,33 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
     public override Job Tick()
     {
-        if (!Settings.Enable.Value) return null!;
+        if (Settings?.Enable?.Value != true) return null!;
+        if (GameController == null) return null!;
 
         try
         {
-            var adapter = _adapterFactory.GetAdapter(GameController, Settings.GameVersion.Value);
+            if (_adapterFactory == null)
+            {
+                _adapterFactory = new ShopAdapterFactory();
+            }
+
+            if (_purchaseExecutor == null && Settings != null)
+            {
+                _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
+            }
+
+            var versionStr = Settings?.GameVersion?.Value ?? "AutoDetect";
+            var adapter = _adapterFactory.GetAdapter(GameController, versionStr);
+            if (adapter == null) return null!;
+
             var isShopOpen = adapter.IsShopOpen(GameController);
 
             // 1. Kiểm tra phím tắt kích hoạt thủ công (Hotkey)
-            if (Settings.TriggerHotkey.PressedOnce())
+            if (Settings?.TriggerHotkey != null && Settings.TriggerHotkey.PressedOnce())
             {
                 if (isShopOpen)
                 {
-                    if (!_purchaseExecutor.IsRunning)
+                    if (_purchaseExecutor != null && !_purchaseExecutor.IsRunning)
                     {
                         StartPurchaseCoroutine();
                     }
@@ -61,9 +78,9 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             }
 
             // 2. Tự động kích hoạt khi mở Shop (Auto-Buy on Open)
-            if (Settings.AutoBuyOnOpen.Value && isShopOpen && !_wasShopOpenLastFrame)
+            if (Settings?.AutoBuyOnOpen?.Value == true && isShopOpen && !_wasShopOpenLastFrame)
             {
-                if (!Settings.HighlightOnlyMode.Value && !_purchaseExecutor.IsRunning)
+                if (Settings.HighlightOnlyMode?.Value != true && _purchaseExecutor != null && !_purchaseExecutor.IsRunning)
                 {
                     StartPurchaseCoroutine();
                 }
@@ -81,14 +98,24 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
     public override void Render()
     {
-        if (!Settings.Enable.Value) return;
+        if (Settings?.Enable?.Value != true) return;
+        if (GameController == null || Graphics == null) return;
 
         try
         {
-            var adapter = _adapterFactory.GetAdapter(GameController, Settings.GameVersion.Value);
-            if (!adapter.IsShopOpen(GameController))
+            if (_adapterFactory == null)
             {
-                _cachedMatchingItems.Clear();
+                _adapterFactory = new ShopAdapterFactory();
+            }
+
+            var versionStr = Settings?.GameVersion?.Value ?? "AutoDetect";
+            var adapter = _adapterFactory.GetAdapter(GameController, versionStr);
+            if (adapter == null || !adapter.IsShopOpen(GameController))
+            {
+                if (_cachedMatchingItems.Count > 0)
+                {
+                    _cachedMatchingItems.Clear();
+                }
                 return;
             }
 
@@ -101,7 +128,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 {
                     var activeRules = Settings.GetActiveRules();
                     _cachedMatchingItems = currentItems
-                        .Where(item => ItemFilterEngine.MatchesAnyRule(item, activeRules))
+                        .Where(item => item != null && ItemFilterEngine.MatchesAnyRule(item, activeRules))
                         .ToList();
                 }
                 else
@@ -113,11 +140,12 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             // Vẽ Highlight lên các item đạt điều kiện trong shop
             if (_cachedMatchingItems.Count > 0)
             {
-                var color = Settings.HighlightColor.Value;
-                var border = Settings.BorderThickness.Value;
+                var color = Settings?.HighlightColor?.Value ?? Color.LimeGreen;
+                var border = Settings?.BorderThickness?.Value ?? 3;
 
                 foreach (var item in _cachedMatchingItems)
                 {
+                    if (item == null) continue;
                     var rect = item.ScreenRect;
                     if (rect.Width <= 0 || rect.Height <= 0) continue;
 
@@ -139,16 +167,24 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
     private void StartPurchaseCoroutine()
     {
-        if (Settings.HighlightOnlyMode.Value)
+        if (Settings?.HighlightOnlyMode?.Value == true)
         {
             LogHelper.Info("Đang ở chế độ 'Highlight Only' (Chỉ xem trước, không mua).");
             return;
         }
 
-        ExileCore.Core.ParallelRunner.Run(new Coroutine(
-            _purchaseExecutor.ExecutePurchaseCoroutine(),
-            this,
-            "ShopAutoBuyer_PurchaseRoutine"
-        ));
+        if (_purchaseExecutor == null && GameController != null && Settings != null)
+        {
+            _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
+        }
+
+        if (_purchaseExecutor != null)
+        {
+            ExileCore.Core.ParallelRunner.Run(new Coroutine(
+                _purchaseExecutor.ExecutePurchaseCoroutine(),
+                this,
+                "ShopAutoBuyer_PurchaseRoutine"
+            ));
+        }
     }
 }
