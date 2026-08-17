@@ -121,11 +121,15 @@ public class PurchaseExecutor
 
                     // 3. Thực hiện thao tác Ctrl + Left Click để mua
                     MouseHelper.CtrlLeftClick();
-                    yield return new WaitTime(140);
-
-                    // 4. Tự động kiểm tra & CLICK THEO ĐÚNG TÂM KHUNG NGẮM NÚT [ OK ]
-                    HandlePriceDifferenceModal(_gc, _settings);
                     yield return new WaitTime(120);
+
+                    // 4. CHỈ BẤM NÚT [ OK ] KHI VÀ CHỈ KHI HỘP THOẠI CẢNH BÁO GIÁ XUẤT HIỆN
+                    if (IsPriceDifferenceModalOpen(_gc))
+                    {
+                        LogHelper.Info("Phát hiện hộp thoại cảnh báo giá! Đang tự động bấm [ OK ]...");
+                        HandlePriceDifferenceModal(_gc, _settings);
+                        yield return new WaitTime(120);
+                    }
 
                     totalPurchasedCount++;
                     LogHelper.Info($"[ĐÃ MUA] {item.DisplayName} (Giá: {item.CostString})");
@@ -154,12 +158,40 @@ public class PurchaseExecutor
         }
     }
 
+    public static bool IsPriceDifferenceModalOpen(GameController gc)
+    {
+        try
+        {
+            if (gc == null) return false;
+            var ingameState = gc.IngameState ?? gc.Game?.IngameState;
+            if (ingameState == null) return false;
+
+            var ingameUi = ingameState.IngameUi;
+            if (ingameUi != null)
+            {
+                var d = FindPriceDifferenceDialogInMemory(ingameUi);
+                if (d != null && d.IsValid && d.IsVisible) return true;
+            }
+
+            if (ingameState.UIRoot != null)
+            {
+                var d = FindPriceDifferenceDialogInMemory(ingameState.UIRoot);
+                if (d != null && d.IsValid && d.IsVisible) return true;
+            }
+        }
+        catch { }
+
+        return false;
+    }
+
     public static void HandlePriceDifferenceModal(GameController gc, ShopAutoBuyerSettings? settings = null)
     {
         try
         {
             if (gc == null) return;
-            // Sử dụng GetWindowRectangleReal() để lấy chính xác Client Area (TỰ ĐỘNG TRỪ TITLE BAR VÀ VIỀN CỬA SỔ)
+            // CHỈ BẤM KHI HỘP THOẠI CẢNH BÁO GIÁ THỰC SỰ XUẤT HIỆN
+            if (!IsPriceDifferenceModalOpen(gc)) return;
+
             var realWinRect = gc.Window.GetWindowRectangleReal();
             if (realWinRect.Width <= 0 || realWinRect.Height <= 0)
             {
@@ -172,10 +204,9 @@ public class PurchaseExecutor
             var customX = settings?.OkButtonX?.Value ?? 750;
             var customY = settings?.OkButtonY?.Value ?? 575;
 
-            // Tọa độ ĐỒNG BỘ 100% VỚI KHUNG NGẮM TRỰC QUAN TRÊN MÀN HÌNH (ĐÃ TRỪ TIÊU ĐỀ TITLE BAR)
             var targetPos = new Vector2(realWinRect.Left + customX * scaleX, realWinRect.Top + customY * scaleY);
 
-            // 1. Di chuyển chuột thẳng đến tâm khung ngắm, ĐỢI GAME NHẬN HOVER (110ms) rồi CLICK
+            // 1. Di chuyển chuột thẳng đến tâm nút [ OK ], ĐỢI GAME NHẬN HOVER (110ms) rồi CLICK
             MouseHelper.LeftClickAt(targetPos, 110, 45);
             Thread.Sleep(50);
 
@@ -199,13 +230,13 @@ public class PurchaseExecutor
     {
         if (root == null || !root.IsValid || !root.IsVisible || depth > 25) return null;
 
-        var txt = (root.Text ?? string.Empty).ToLower();
-        var txtNoTags = (root.TextNoTags ?? string.Empty).ToLower();
+        var txt = (root.Text ?? string.Empty).ToLowerInvariant();
+        var txtNoTags = (root.TextNoTags ?? string.Empty).ToLowerInvariant();
 
-        if (txt.Contains("price differs") || txt.Contains("initially travelled") || txt.Contains("differs from") ||
-            txtNoTags.Contains("price differs") || txtNoTags.Contains("initially travelled") || txtNoTags.Contains("differs from"))
+        if (txt.Contains("price differs") || txt.Contains("initially travelled") || txt.Contains("differs from") || txt.Contains("this item's price") ||
+            txtNoTags.Contains("price differs") || txtNoTags.Contains("initially travelled") || txtNoTags.Contains("differs from") || txtNoTags.Contains("this item's price"))
         {
-            return root.Parent ?? root;
+            return root;
         }
 
         if (root.Children != null)

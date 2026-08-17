@@ -247,8 +247,8 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 RenderStatusOverlayBox(isShopOpen);
             }
 
-            // 3. Ve khung can chinh vi tri bam nut OK khi mo Shop
-            if (isShopOpen && Settings != null)
+            // 3. Ve khung can chinh vi tri bam nut OK khi hop thoai canh bao gia xuat hien tren man hinh
+            if (isShopOpen && Settings != null && PurchaseExecutor.IsPriceDifferenceModalOpen(GameController))
             {
                 var realWinRect = GameController.Window.GetWindowRectangleReal();
                 if (realWinRect.Width <= 0 || realWinRect.Height <= 0)
