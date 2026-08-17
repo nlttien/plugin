@@ -35,19 +35,29 @@ public static class MouseHelper
     public static void CtrlLeftClick()
     {
         Input.KeyDown(Keys.LControlKey);
-        Thread.Sleep(35);
+        Thread.Sleep(40);
         Input.LeftDown();
-        Thread.Sleep(35);
+        Thread.Sleep(40);
         Input.LeftUp();
-        Thread.Sleep(35);
+        Thread.Sleep(40);
         Input.KeyUp(Keys.LControlKey);
     }
 
     public static void LeftClick()
     {
         Input.LeftDown();
-        Thread.Sleep(35);
+        Thread.Sleep(40);
         Input.LeftUp();
+    }
+
+    public static void LeftClickAt(Vector2 target, int hoverWaitMs = 100, int holdMs = 45)
+    {
+        Input.SetCursorPos(target);
+        Thread.Sleep(hoverWaitMs);
+        Input.LeftDown();
+        Thread.Sleep(holdMs);
+        Input.LeftUp();
+        Thread.Sleep(30);
     }
 
     public static int GetRandomDelay(int minMs, int maxMs)
