@@ -80,10 +80,10 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
-            // 2. Tu dong kich hoat khi mo Shop (Auto-Buy on Open)
-            if (Settings?.AutoBuyOnOpen?.Value == true && isShopOpen && !_wasShopOpenLastFrame)
+            // 2. Tu dong kich hoat mua ngay khi mo Shop (Khong can bam F6)
+            if (isShopOpen && Settings?.HighlightOnlyMode?.Value != true && _purchaseExecutor != null && !_purchaseExecutor.IsRunning)
             {
-                if (Settings.HighlightOnlyMode?.Value != true && _purchaseExecutor != null && !_purchaseExecutor.IsRunning)
+                if (!_wasShopOpenLastFrame || (_cachedMatchingItems.Count > 0 && (DateTime.Now - _lastScanTime).TotalMilliseconds > 500))
                 {
                     StartPurchaseCoroutine();
                 }
