@@ -15,7 +15,7 @@ namespace ShopAutoBuyer.Core.Adapters;
 
 public class Poe1ShopAdapter : IShopAdapter
 {
-    public string GameVersionName => "Path of Exile 1";
+    public string AdapterName => "Path of Exile 1";
 
     public bool IsShopOpen(GameController gc)
     {
