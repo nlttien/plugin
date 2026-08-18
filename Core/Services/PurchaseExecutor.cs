@@ -225,10 +225,10 @@ public class PurchaseExecutor
                         RecentPurchases.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {fullBuyLog}");
                         if (RecentPurchases.Count > 10) RecentPurchases.RemoveAt(RecentPurchases.Count - 1);
 
-                        // Ghi vào file log lịch sử D:\codecuatien\purchase_history.txt
+                        // Ghi vào file log lịch sử D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\purchase_history.txt
                         try
                         {
-                            var historyFile = @"D:\codecuatien\purchase_history.txt";
+                            var historyFile = @"D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\purchase_history.txt";
                             var logLine = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ĐÃ MUA] {fullBuyLog}\n";
                             File.AppendAllText(historyFile, logLine);
                         }
