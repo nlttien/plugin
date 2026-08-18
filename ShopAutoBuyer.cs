@@ -37,12 +37,14 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         }
 
         // Tu dong chuyen gia tri cu (787, 545) sang toa do chuan xac (750, 575)
+        _isPausedByUser = false;
         if (Settings != null)
         {
             if (Settings.OkButtonX.Value == 787) Settings.OkButtonX.Value = 750;
             if (Settings.OkButtonY.Value == 545) Settings.OkButtonY.Value = 575;
             if (Settings.BuyDivinePrice != null) Settings.BuyDivinePrice.Value = false;
             if (Settings.MaxDivinePrice != null) Settings.MaxDivinePrice.Value = 0;
+            if (Settings.PauseAutoBuyer != null) Settings.PauseAutoBuyer.Value = false;
         }
 
         // Gan su kien cho nut dung khan cap trong menu
