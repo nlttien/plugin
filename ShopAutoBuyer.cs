@@ -68,6 +68,16 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             };
         }
 
+        // Gan su kien cho nut Test Deposit trong menu
+        if (Settings?.TestDepositButton != null)
+        {
+            Settings.TestDepositButton.OnPressed = () =>
+            {
+                LogHelper.Warn(">>> [TEST MODE] BAN DA BAM NUT TEST VE HIDEOUT & CAT DO TRONG MENU! <<<");
+                StartDepositCoroutine();
+            };
+        }
+
         LogHelper.Info("Plugin ShopAutoBuyer da khoi tao thanh cong (Ho tro PoE 1 & PoE 2).");
         return true;
     }
@@ -107,6 +117,13 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     NotifyWebTradeStatus("WAITING_IN_GAME");
                     LogHelper.Info(">>> [ShopAutoBuyer] DA BAT LAI TIEN TRINH TU DONG! <<<");
                 }
+            }
+
+            // Phim tat TEST VE HIDEOUT & CAT DO (Mac dinh F6)
+            if (Settings?.TestDepositHotkey != null && Settings.TestDepositHotkey.PressedOnce())
+            {
+                LogHelper.Warn(">>> [TEST MODE] BAN DA BAM PHIM TAT F6 DE TEST VE HIDEOUT & CAT DO! <<<");
+                StartDepositCoroutine();
             }
 
             // 2. Dong bo voi Toggle PauseAutoBuyer trong Menu
@@ -170,8 +187,10 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
-            // 5. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG
-            if (!isShopOpen && !_isPausedByUser && Settings?.AutoDepositWhenFull?.Value == true && _stashDepositService != null && _stashDepositService.NeedsDeposit() && !_stashDepositService.IsDepositing)
+            // 5. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG HOAC CHE DO TEST
+            var shouldDeposit = (Settings?.AutoDepositWhenFull?.Value == true && _stashDepositService != null && _stashDepositService.NeedsDeposit()) ||
+                                (Settings?.TestDepositAfterEveryPurchase?.Value == true);
+            if (!isShopOpen && !_isPausedByUser && shouldDeposit && _stashDepositService != null && !_stashDepositService.IsDepositing)
             {
                 if (!isRunning)
                 {

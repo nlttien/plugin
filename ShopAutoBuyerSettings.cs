@@ -73,6 +73,18 @@ public class ShopAutoBuyerSettings : ISettings
     public RangeNode<int> DepositButtonY { get; set; } = new RangeNode<int>(615, 100, 1080);
 
     // ==========================================
+    // CHẾ ĐỘ TEST CẤT ĐỒ (TEST MODE)
+    // ==========================================
+    [Menu("TEST NGAY: Bam de chay thu ve Hideout & Cat do")]
+    public ButtonNode TestDepositButton { get; set; } = new ButtonNode();
+
+    [Menu("Phim Tat Test Ve & Cat Do (Mac dinh F6)")]
+    public HotkeyNode TestDepositHotkey { get; set; } = new HotkeyNode(Keys.F6);
+
+    [Menu("Che Do Test: Luon ve cat do sau moi chuyen mua")]
+    public ToggleNode TestDepositAfterEveryPurchase { get; set; } = new ToggleNode(false);
+
+    // ==========================================
     // CAI DAT CHUNG
     // ==========================================
     [Menu("Phien Ban Game (Game Version)")]
