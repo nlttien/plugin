@@ -248,13 +248,16 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                         var rect = item.ScreenRect;
                         if (rect.Width <= 0 || rect.Height <= 0) continue;
 
-                        var isConfirmedChaos = ItemFilterEngine.MatchesTimelessSettings(item, Settings);
-                        var isDivine = !string.IsNullOrEmpty(item.CostString) && item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase);
+                        var isConfirmedBuy = Settings.OnlyBuyTimelessJewels?.Value == true
+                            ? ItemFilterEngine.MatchesTimelessSettings(item, Settings)
+                            : ItemFilterEngine.MatchesGeneralSettings(item, Settings, Settings.GetActiveRules());
 
-                        // Neu la Divine -> Khong ve highlight
+                        var isDivine = !string.IsNullOrEmpty(item.CostString) && item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase) && Settings.BuyDivinePrice?.Value != true;
+
+                        // Neu la Divine ma khong bat mua Divine -> Khong ve highlight
                         if (isDivine) continue;
 
-                        var color = isConfirmedChaos ? (Settings?.HighlightColor?.Value ?? Color.LimeGreen) : Color.Cyan;
+                        var color = isConfirmedBuy ? (Settings?.HighlightColor?.Value ?? Color.LimeGreen) : Color.Cyan;
 
                         Graphics.DrawFrame(rect, color, border);
 
