@@ -80,7 +80,6 @@ public class PurchaseExecutor
 
             // ----------------------------------------------------
             // BƯỚC 1: LỌC TẤT CẢ CÁC VIÊN TIMELESS JEWEL ĐẠT CHUẨN ĐỂ QUÉT GIÁ TRƯỚC
-            // LOẠI TRỪ TOÀN BỘ CÁC Ô BỊ ÁO GIÁP / TRANG BỊ LỚN ĐÈ LÊN VỊ TRÍ
             // ----------------------------------------------------
             List<ShopItemInfo> candidateItems;
             if (_settings.OnlyBuyTimelessJewels?.Value == true)
@@ -103,19 +102,20 @@ public class PurchaseExecutor
 
             if (candidateItems.Count > 0)
             {
-                LogHelper.Info($"[BƯỚC 1: QUÉT GIÁ] Tìm thấy {candidateItems.Count} viên Timeless Jewel trong Tab. Bắt đầu lia chuột quét giá toàn bộ...");
+                LogHelper.Info($"[BƯỚC 1: QUÉT GIÁ] Tìm thấy {candidateItems.Count} viên Timeless Jewel trong Tab. Bắt đầu lia chuột quét giá...");
 
                 // QUÉT TOÀN BỘ CÁC VIÊN TIMELESS TRƯỚC
                 foreach (var item in candidateItems)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                    // Lia chuột qua viên ngọc để nạp dữ liệu Tooltip vào RAM
+                    // Lia chuột qua viên ngọc để nạp dữ liệu Tooltip vào RAM (Đợi 130-150ms cho game nạp xong Tooltip)
                     MouseHelper.MoveMouseWithJitter(item.ScreenRect, 6f);
-                    yield return new WaitTime(MouseHelper.GetRandomDelay(70, 95));
+                    yield return new WaitTime(MouseHelper.GetRandomDelay(130, 150));
 
                     // Đọc và cập nhật trực tiếp dữ liệu giá và mod từ Tooltip
                     UpdateItemFromLiveHover(_gc, item);
+                    LogHelper.Info($"[QUÉT XONG] {item.DisplayName} -> Giá: {item.CostString ?? "Chưa đọc được"} (Chaos: {item.Cost?.Amount})");
                 }
 
                 // ----------------------------------------------------
@@ -137,7 +137,7 @@ public class PurchaseExecutor
                     {
                         if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                        // 1. Kiểm tra an toàn: Nếu bị áo giáp đè -> BỎ QUA NGAY
+                        // 1. Kiểm tra an toàn: Nếu bị áo giáp lớn đè -> BỎ QUA NGAY
                         if (IsOccludedByLargerItem(item, currentItems))
                         {
                             LogHelper.Warn($"[BỎ QUA AN TOÀN] Ô ngọc {item.DisplayName} bị áo giáp/trang bị đè lên! Bỏ qua để không mua nhầm.");
@@ -158,7 +158,7 @@ public class PurchaseExecutor
                         MouseHelper.MoveMouse(clickTarget);
                         yield return new WaitTime(100);
 
-                        // 5. KIỂM TRA TRỰC TIẾP DƯỚI CON TRỎ CHUỘT (Live Hover Protection): Tuyệt đối không click nếu là Áo giáp/Vũ khí
+                        // 5. KIỂM TRA TRỰC TIẾP DƯỚI CON TRỎ CHUỘT (Live Hover Protection): Tuyệt đối không click nếu là Áo giáp có socket
                         if (IsHoveringNonJewelEquipment(_gc))
                         {
                             LogHelper.Warn($"[HỦY CLICK AN TOÀN] Con trỏ chuột đang trỏ vào Áo giáp/Trang bị có socket! Hủy click ngay lập tức.");
@@ -231,15 +231,15 @@ public class PurchaseExecutor
         {
             if (other == null || other == item) continue;
 
-            // Nếu là trang bị lớn (Áo giáp, Vũ khí, v.v. có Width > 1 hoặc Height > 1 hoặc Sockets > 0 hoặc không phải Timeless)
-            if (other.Width > 1 || other.Height > 1 || other.Sockets > 0 || !other.IsTimelessJewel)
+            // CHỈ XÉT TRANG BỊ LỚN THỰC SỰ (Áo giáp 2x3, Vũ khí...) có kích thước lớn hơn ngọc
+            if (other.Sockets > 0 || other.Width > 1 || other.Height > 1 || other.ScreenRect.Height > 90 || other.ScreenRect.Width > 90)
             {
                 var rect = other.ScreenRect;
                 if (rect.Width > 0 && rect.Height > 0)
                 {
                     // Nếu tâm của viên ngọc nằm gọn bên trong khung hình của trang bị lớn -> ĐANG BỊ ĐÈ!
-                    if (center.X >= rect.Left + 4 && center.X <= rect.Right - 4 &&
-                        center.Y >= rect.Top + 4 && center.Y <= rect.Bottom - 4)
+                    if (center.X >= rect.Left + 6 && center.X <= rect.Right - 6 &&
+                        center.Y >= rect.Top + 6 && center.Y <= rect.Bottom - 6)
                     {
                         return true;
                     }
@@ -270,13 +270,7 @@ public class PurchaseExecutor
                         return true; // Có socket -> 100% là áo/vũ khí/găng/mũ/giày!
                     }
 
-                    if (path.Contains("Armour", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("BodyArmour", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("Weapon", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("Flask", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("Amulet", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("Ring", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("Belt", StringComparison.OrdinalIgnoreCase))
+                    if (path.Contains("BodyArmour", StringComparison.OrdinalIgnoreCase))
                     {
                         return true;
                     }
