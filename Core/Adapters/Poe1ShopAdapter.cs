@@ -8,6 +8,7 @@ using ExileCore.PoEMemory.Components;
 using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.Shared.Enums;
 using ShopAutoBuyer.Core.Models;
+using ShopAutoBuyer.Core.Services;
 using ShopAutoBuyer.Core.Utils;
 using Vector2 = System.Numerics.Vector2;
 
