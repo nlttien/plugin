@@ -165,8 +165,8 @@ public class Poe1ShopAdapter : IShopAdapter
     {
         if (itemInfo == null || modsComp == null) return;
 
-        // 1. KÍCH THƯỚC Ô TRÊN MÀN HÌNH: NGỌC 1x1 CÓ KÍCH THƯỚC ~47x47px. ÁO GIÁP 2x3 CÓ KÍCH THƯỚC > 80px -> LOẠI NGAY!
-        if (itemInfo.ScreenRect.Width > 68 || itemInfo.ScreenRect.Height > 68)
+        // 1. KÍCH THƯỚC Ô LƯỚI: JEWEL BẮT BUỘC LÀ 1x1 VÀ KHÔNG CÓ SOCKETS
+        if (itemInfo.Width != 1 || itemInfo.Height != 1 || itemInfo.Sockets > 0 || itemInfo.Links > 0)
         {
             itemInfo.IsTimelessJewel = false;
             return;

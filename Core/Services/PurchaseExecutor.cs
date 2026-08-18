@@ -84,7 +84,7 @@ public class PurchaseExecutor
             if (_settings.OnlyBuyTimelessJewels?.Value == true)
             {
                 candidateItems = currentItems
-                    .Where(i => i != null && i.IsTimelessJewel && i.ScreenRect.Width <= 68 && i.ScreenRect.Height <= 68 && i.Sockets == 0 && ItemFilterEngine.MatchesTimelessCandidate(i, _settings))
+                    .Where(i => i != null && i.IsTimelessJewel && i.Width == 1 && i.Height == 1 && i.Sockets == 0 && ItemFilterEngine.MatchesTimelessCandidate(i, _settings))
                     .OrderBy(i => i.ScreenRect.Top)
                     .ThenBy(i => i.ScreenRect.Left)
                     .ToList();
