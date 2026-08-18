@@ -25,6 +25,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     private List<ShopItemInfo> _cachedAllItems = new List<ShopItemInfo>();
     private DateTime _lastScanTime = DateTime.MinValue;
     private DateTime _lastNoItemsSignalTime = DateTime.MinValue;
+    private DateTime _lastModalClickTime = DateTime.MinValue;
     private bool _isShopOpenCached;
 
     public override bool Initialise()
@@ -123,6 +124,16 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             _isShopOpenCached = isShopOpen;
 
             var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
+
+            // 3. TU DONG PHAT HIEN VA BAM NUT [ OK ] KHI XUAT HIEN HOP THOAI CANH BAO GIA
+            if (isShopOpen && PurchaseExecutor.IsPriceDifferenceModalOpen(GameController))
+            {
+                if ((DateTime.Now - _lastModalClickTime).TotalMilliseconds > 250)
+                {
+                    _lastModalClickTime = DateTime.Now;
+                    PurchaseExecutor.HandlePriceDifferenceModal(GameController, Settings);
+                }
+            }
 
             // 4. TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam bat ky nut nao
             if (isShopOpen && !_isPausedByUser && Settings?.HighlightOnlyMode?.Value != true)
