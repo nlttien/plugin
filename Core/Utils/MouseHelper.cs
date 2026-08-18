@@ -19,27 +19,42 @@ public static class MouseHelper
     /// <summary>
     /// Di chuyển chuột vào chính giữa tâm ô đồ (hạ thấp xuống một khoảng offsetY để vào giữa biểu tượng ngọc).
     /// </summary>
-    public static void MoveMouseWithJitter(RectangleF rect, float offsetY = 8f)
+    public static void MoveMouseWithJitter(RectangleF rect, float offsetY = 6f)
     {
-        // Tâm chính xác của ô đồ + độ hạ thấp xuống giữa ô
         var centerX = rect.Center.X;
         var centerY = rect.Center.Y + offsetY;
 
-        // Jitter nhỏ tự nhiên (±2 pixel)
-        var jitterX = (float)(Rnd.NextDouble() * 4.0 - 2.0);
-        var jitterY = (float)(Rnd.NextDouble() * 4.0 - 2.0);
+        var jitterX = (float)(Rnd.NextDouble() * 3.0 - 1.5);
+        var jitterY = (float)(Rnd.NextDouble() * 3.0 - 1.5);
 
         Input.SetCursorPos(new Vector2(centerX + jitterX, centerY + jitterY));
+    }
+
+    /// <summary>
+    /// Di chuyển chuột đến vị trí mục tiêu, đợi hover ổn định rồi thực hiện thao tác Ctrl + Click chính xác 100%.
+    /// </summary>
+    public static void CtrlLeftClickAt(Vector2 target, int hoverWaitMs = 130, int holdMs = 50)
+    {
+        Input.SetCursorPos(target);
+        Thread.Sleep(hoverWaitMs);
+        Input.KeyDown(Keys.LControlKey);
+        Thread.Sleep(30);
+        Input.LeftDown();
+        Thread.Sleep(holdMs);
+        Input.LeftUp();
+        Thread.Sleep(30);
+        Input.KeyUp(Keys.LControlKey);
+        Thread.Sleep(30);
     }
 
     public static void CtrlLeftClick()
     {
         Input.KeyDown(Keys.LControlKey);
-        Thread.Sleep(40);
+        Thread.Sleep(35);
         Input.LeftDown();
-        Thread.Sleep(40);
+        Thread.Sleep(50);
         Input.LeftUp();
-        Thread.Sleep(40);
+        Thread.Sleep(35);
         Input.KeyUp(Keys.LControlKey);
     }
 
