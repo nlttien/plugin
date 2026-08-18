@@ -22,6 +22,8 @@ public class PurchaseExecutor
     private readonly ShopAutoBuyerSettings _settings;
     private readonly ShopAdapterFactory _adapterFactory;
 
+    public static readonly Dictionary<(int x, int y), CurrencyCost> ScannedPriceCache = new();
+
     public bool IsRunning { get; set; }
     public bool RequestStop { get; set; }
 
@@ -278,6 +280,11 @@ public class PurchaseExecutor
                         item.TimelessLeader = leaderMatch.Groups[1].Value;
                     }
                 }
+
+                if (item.Cost != null)
+                {
+                    ScannedPriceCache[(item.SlotX, item.SlotY)] = item.Cost;
+                }
             }
         }
         catch { }
@@ -408,12 +415,10 @@ public class PurchaseExecutor
         if (root == null || !root.IsValid || depth > 25) return null;
 
         var txt = (root.Text ?? string.Empty).ToLowerInvariant();
-        var txt2 = (root.Text2 ?? string.Empty).ToLowerInvariant();
         var txtNoTags = (root.TextNoTags ?? string.Empty).ToLowerInvariant();
 
         // Kiểm tra từ khóa hộp thoại cảnh báo giá
         if (txt.Contains("price differs") || txt.Contains("differs from") || txt.Contains("this item's price") || txt.Contains("initially travelled") || txt.Contains("this shop for") || txt.Contains("different price") || txt.Contains("differs") ||
-            txt2.Contains("price differs") || txt2.Contains("differs from") || txt2.Contains("this item's price") || txt2.Contains("initially travelled") || txt2.Contains("this shop for") || txt2.Contains("different price") || txt2.Contains("differs") ||
             txtNoTags.Contains("price differs") || txtNoTags.Contains("differs from") || txtNoTags.Contains("this item's price") || txtNoTags.Contains("initially travelled") || txtNoTags.Contains("this shop for") || txtNoTags.Contains("different price") || txtNoTags.Contains("differs"))
         {
             return root.Parent ?? root;

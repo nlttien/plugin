@@ -26,6 +26,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     private DateTime _lastScanTime = DateTime.MinValue;
     private DateTime _lastNoItemsSignalTime = DateTime.MinValue;
     private DateTime _lastModalClickTime = DateTime.MinValue;
+    private bool _hasScannedCurrentShop = false;
     private bool _isShopOpenCached;
 
     public override bool Initialise()
@@ -39,6 +40,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
         // Tu dong chuyen gia tri cu (787, 545) sang toa do chuan xac (750, 575)
         _isPausedByUser = false;
+        _hasScannedCurrentShop = false;
         if (Settings != null)
         {
             if (Settings.OkButtonX.Value == 787) Settings.OkButtonX.Value = 750;
@@ -96,6 +98,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
                 else
                 {
+                    _hasScannedCurrentShop = false;
                     NotifyWebTradeStatus("WAITING_IN_GAME");
                     LogHelper.Info(">>> [ShopAutoBuyer] DA BAT LAI TIEN TRINH TU DONG! <<<");
                 }
@@ -112,6 +115,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
                 else
                 {
+                    _hasScannedCurrentShop = false;
                     NotifyWebTradeStatus("WAITING_IN_GAME");
                 }
             }
@@ -122,6 +126,18 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
             var isShopOpen = adapter.IsShopOpen(GameController);
             _isShopOpenCached = isShopOpen;
+
+            // Reset trang thai scan khi Shop vua moi duoc mo ra
+            if (isShopOpen && !_wasShopOpenLastFrame)
+            {
+                _hasScannedCurrentShop = false;
+                PurchaseExecutor.ScannedPriceCache.Clear();
+            }
+            else if (!isShopOpen && _wasShopOpenLastFrame)
+            {
+                _hasScannedCurrentShop = false;
+                PurchaseExecutor.ScannedPriceCache.Clear();
+            }
 
             var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
 
@@ -135,11 +151,12 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
-            // 4. TU DONG MUA HOAN TOAN (Hands-Free): Khong can bam bat ky nut nao
-            if (isShopOpen && !_isPausedByUser && Settings?.HighlightOnlyMode?.Value != true)
+            // 4. TU DONG MUA HOAN TOAN (Hands-Free): Chi chay quét & mua 1 LAN DUY NHAT moi khi mo Shop (Khong lap lai vo tan)
+            if (isShopOpen && !_isPausedByUser && Settings?.HighlightOnlyMode?.Value != true && !_hasScannedCurrentShop)
             {
                 if (!isRunning)
                 {
+                    _hasScannedCurrentShop = true;
                     StartPurchaseCoroutine();
                 }
             }

@@ -138,8 +138,17 @@ public class Poe1ShopAdapter : IShopAdapter
                         itemInfo.Quality = qualityComp.ItemQuality;
                     }
 
-                    // Parse item cost
-                    ParseCost(invItem, itemInfo);
+                    // Check if price was already scanned in RAM
+                    if (PurchaseExecutor.ScannedPriceCache.TryGetValue((itemInfo.SlotX, itemInfo.SlotY), out var cachedCost))
+                    {
+                        itemInfo.Cost = cachedCost;
+                        itemInfo.CostString = $"{cachedCost.Amount} {cachedCost.CurrencyName}";
+                    }
+                    else
+                    {
+                        // Parse item cost
+                        ParseCost(invItem, itemInfo);
+                    }
                 }
 
                 result.Add(itemInfo);

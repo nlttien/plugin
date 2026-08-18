@@ -9,8 +9,8 @@ namespace ShopAutoBuyer.Core.Services;
 public static class ItemFilterEngine
 {
     /// <summary>
-    /// Kiểm tra sơ bộ xem item có phải là 1 trong 5 loại Timeless Jewel đạt chuẩn tướng/seed không (chưa cần biết giá).
-    /// Dùng để bot tự động quét và hover từng viên trong Shop.
+    /// Kiểm tra sơ bộ xem item có phải là 1 trong 5 loại Timeless Jewel đạt chuẩn tướng/seed không.
+    /// Nếu item đã được quét giá, chỉ trả về true nếu giá hợp lệ (10-50c).
     /// </summary>
     public static bool MatchesTimelessCandidate(ShopItemInfo item, ShopAutoBuyerSettings settings)
     {
@@ -51,11 +51,19 @@ public static class ItemFilterEngine
             if (!matchedSeed) return false;
         }
 
-        // 4. Nếu đã biết chắc chắn là Divine -> loại luôn
+        // 4. Nếu chuỗi giá có chữ Divine -> Loại ngay lập tức
         if (!string.IsNullOrEmpty(item.CostString) && item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase))
             return false;
-        if (item.Cost?.CurrencyName?.Contains("Divine", StringComparison.OrdinalIgnoreCase) == true)
-            return false;
+
+        // 5. NẾU MÓN ĐỒ ĐÃ ĐƯỢC QUÉT GIÁ (item.Cost != null)
+        // Bắt buộc phải thỏa mãn điều kiện giá (10 - 50 Chaos). Món 70c, 100c, Divine... ĐỀU BỊ LOẠI NGAY (KHÔNG HIỆN KHUNG)
+        if (item.Cost != null)
+        {
+            if (!MatchesTimelessSettings(item, settings))
+            {
+                return false;
+            }
+        }
 
         return true;
     }
@@ -65,8 +73,44 @@ public static class ItemFilterEngine
     /// </summary>
     public static bool MatchesTimelessSettings(ShopItemInfo item, ShopAutoBuyerSettings settings)
     {
-        if (!MatchesTimelessCandidate(item, settings)) return false;
+        if (item == null || settings == null) return false;
+        if (!item.IsTimelessJewel) return false;
 
+        var name = item.Name ?? string.Empty;
+
+        // 1. Filter by Jewel Type
+        if (name.Contains("Brutal Restraint", StringComparison.OrdinalIgnoreCase) && settings.BuyBrutalRestraint?.Value == false)
+            return false;
+        if (name.Contains("Glorious Vanity", StringComparison.OrdinalIgnoreCase) && settings.BuyGloriousVanity?.Value == false)
+            return false;
+        if (name.Contains("Lethal Pride", StringComparison.OrdinalIgnoreCase) && settings.BuyLethalPride?.Value == false)
+            return false;
+        if (name.Contains("Militant Faith", StringComparison.OrdinalIgnoreCase) && settings.BuyMilitantFaith?.Value == false)
+            return false;
+        if (name.Contains("Elegant Hubris", StringComparison.OrdinalIgnoreCase) && settings.BuyElegantHubris?.Value == false)
+            return false;
+
+        // 2. Filter by Leader
+        var leaderFilter = settings.LeaderFilter?.Value?.Trim();
+        if (!string.IsNullOrEmpty(leaderFilter))
+        {
+            var leaders = leaderFilter.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            var itemLeader = item.TimelessLeader ?? string.Empty;
+            var matchedLeader = leaders.Any(l => itemLeader.Contains(l.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (!matchedLeader) return false;
+        }
+
+        // 3. Filter by Specific Seeds
+        var seedsFilter = settings.SpecificSeeds?.Value?.Trim();
+        if (!string.IsNullOrEmpty(seedsFilter))
+        {
+            var seeds = seedsFilter.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            var itemSeedStr = item.TimelessSeed.ToString();
+            var matchedSeed = seeds.Any(s => s.Trim() == itemSeedStr);
+            if (!matchedSeed) return false;
+        }
+
+        // 4. KIỂM TRA GIÁ: BẮT BUỘC CHAOS TỪ 10 ĐẾN 50c
         if (item.Cost != null)
         {
             var curr = item.Cost.CurrencyName ?? string.Empty;
@@ -85,7 +129,7 @@ public static class ItemFilterEngine
                 var minChaos = settings.MinChaosPrice?.Value ?? 10;
                 var maxChaos = settings.MaxChaosPrice?.Value ?? 50;
 
-                // Bắt buộc trong khoảng 10 đến 50 Chaos
+                // Bắt buộc trong khoảng 10 đến 50 Chaos (ví dụ: 70c > 50c sẽ trả về false)
                 if (item.Cost.Amount < minChaos || (maxChaos > 0 && item.Cost.Amount > maxChaos))
                 {
                     return false;
@@ -106,7 +150,7 @@ public static class ItemFilterEngine
         }
         else
         {
-            // NẾU CHƯA ĐỌC ĐƯỢC GIÁ (item.Cost == null) -> BẮT BUỘC TỪ CHỐI KHÔNG HIỆN XANH!
+            // NẾU CHƯA ĐỌC ĐƯỢC GIÁ -> TỪ CHỐI
             return false;
         }
 
