@@ -171,7 +171,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                         if (Settings.OnlyBuyTimelessJewels?.Value == true)
                         {
                             _cachedMatchingItems = currentItems
-                                .Where(item => item != null && ItemFilterEngine.MatchesTimelessSettings(item, Settings))
+                                .Where(item => item != null && ItemFilterEngine.MatchesTimelessCandidate(item, Settings))
                                 .ToList();
                         }
                         else
@@ -199,10 +199,9 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     }
                 }
 
-                // 1. Ve Highlight len cac item dat dieu kien trong shop
+                // 1. Ve Highlight len cac item Timeless hop le trong shop
                 if (_cachedMatchingItems.Count > 0)
                 {
-                    var color = Settings?.HighlightColor?.Value ?? Color.LimeGreen;
                     var border = Settings?.BorderThickness?.Value ?? 2;
                     var labelMode = Settings?.LabelMode?.Value ?? "Compact (Seed Only)";
 
@@ -212,17 +211,27 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                         var rect = item.ScreenRect;
                         if (rect.Width <= 0 || rect.Height <= 0) continue;
 
+                        var isConfirmedChaos = ItemFilterEngine.MatchesTimelessSettings(item, Settings);
+                        var isDivine = !string.IsNullOrEmpty(item.CostString) && item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase);
+
+                        // Neu la Divine -> Khong ve highlight
+                        if (isDivine) continue;
+
+                        var color = isConfirmedChaos ? (Settings?.HighlightColor?.Value ?? Color.LimeGreen) : Color.Cyan;
+
                         Graphics.DrawFrame(rect, color, border);
 
                         if (labelMode == "Compact (Seed Only)")
                         {
-                            var compactLabel = item.TimelessSeed > 0 ? $"{item.TimelessSeed}" : "BUY";
+                            var compactLabel = isConfirmedChaos 
+                                ? (item.TimelessSeed > 0 ? $"{item.TimelessSeed}" : "BUY")
+                                : (item.TimelessSeed > 0 ? $"{item.TimelessSeed} (?)" : "SCAN");
                             var textPos = new Vector2(rect.Left + 2, rect.Top + 2);
-                            Graphics.DrawText(compactLabel, textPos, Color.Yellow);
+                            Graphics.DrawText(compactLabel, textPos, isConfirmedChaos ? Color.Yellow : Color.LightCyan);
                         }
                         else if (labelMode == "Full Name")
                         {
-                            var labelText = $"BUY: {item.DisplayName}";
+                            var labelText = isConfirmedChaos ? $"BUY: {item.DisplayName}" : $"SCAN: {item.DisplayName}";
                             var textPos = new Vector2(rect.Left + 2, rect.Top - 14);
                             Graphics.DrawText(labelText, textPos, color);
                         }

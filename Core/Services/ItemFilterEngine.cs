@@ -8,14 +8,18 @@ namespace ShopAutoBuyer.Core.Services;
 
 public static class ItemFilterEngine
 {
-    public static bool MatchesTimelessSettings(ShopItemInfo item, ShopAutoBuyerSettings settings)
+    /// <summary>
+    /// Kiểm tra sơ bộ xem item có phải là 1 trong 5 loại Timeless Jewel đạt chuẩn tướng/seed không (chưa cần biết giá).
+    /// Dùng để bot tự động quét và hover từng viên trong Shop.
+    /// </summary>
+    public static bool MatchesTimelessCandidate(ShopItemInfo item, ShopAutoBuyerSettings settings)
     {
         if (item == null || settings == null) return false;
         if (!item.IsTimelessJewel) return false;
 
         var name = item.Name ?? string.Empty;
 
-        // 1. Filter by Jewel Type (5 Loai Timeless Chuan)
+        // 1. Filter by Jewel Type (5 Loại Timeless Chuẩn)
         if (name.Contains("Brutal Restraint", StringComparison.OrdinalIgnoreCase) && settings.BuyBrutalRestraint?.Value == false)
             return false;
         if (name.Contains("Glorious Vanity", StringComparison.OrdinalIgnoreCase) && settings.BuyGloriousVanity?.Value == false)
@@ -47,14 +51,21 @@ public static class ItemFilterEngine
             if (!matchedSeed) return false;
         }
 
-        // 4. KIỂM TRA CHẶT CHẼ GIÁ: TỪ CHỐI 100% TẤT CẢ MÓN GIÁ DIVINE HOẶC KHÔNG RÕ GIÁ!
-        // CHỈ CHẤP NHẬN VÀ HIỆN XANH KHI ĐÃ XÁC ĐỊNH ĐƯỢC GIÁ LÀ CHAOS VÀ NẰM TRONG KHOẢNG 10 - 50 CHAOS!
-
-        // BƯỚC 4.1: Nếu có bất kỳ dấu hiệu chữ Divine nào -> TỪ CHỐI NGAY 100%
+        // 4. Nếu đã biết chắc chắn là Divine -> loại luôn
         if (!string.IsNullOrEmpty(item.CostString) && item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase))
-        {
             return false;
-        }
+        if (item.Cost?.CurrencyName?.Contains("Divine", StringComparison.OrdinalIgnoreCase) == true)
+            return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Kiểm tra toàn diện bao gồm cả giá: BẮT BUỘC PHẢI LÀ CHAOS ORB VÀ TỪ 10 ĐẾN 50 CHAOS.
+    /// </summary>
+    public static bool MatchesTimelessSettings(ShopItemInfo item, ShopAutoBuyerSettings settings)
+    {
+        if (!MatchesTimelessCandidate(item, settings)) return false;
 
         if (item.Cost != null)
         {
