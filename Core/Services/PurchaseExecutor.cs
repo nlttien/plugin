@@ -155,7 +155,7 @@ public class PurchaseExecutor
                         var clickTarget = new Vector2(item.ScreenRect.Center.X, item.ScreenRect.Center.Y + 6);
 
                         // 4. Lia chuột tới vị trí mua và kiểm tra trước khi bấm
-                        MouseHelper.MoveMouseWithJitter(clickTarget, 4f);
+                        MouseHelper.MoveMouse(clickTarget);
                         yield return new WaitTime(100);
 
                         // 5. KIỂM TRA TRỰC TIẾP DƯỚI CON TRỎ CHUỘT (Live Hover Protection): Tuyệt đối không click nếu là Áo giáp/Vũ khí
