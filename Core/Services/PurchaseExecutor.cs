@@ -86,45 +86,40 @@ public class PurchaseExecutor
                     if (currentItems == null || currentItems.Count == 0) continue;
                 }
 
-                // Sắp xếp toàn bộ vật phẩm trong Tab từ trên xuống dưới, từ trái qua phải để bot lia chuột mượt mà
-                var itemsToScan = currentItems
-                    .Where(i => i != null && i.ScreenRect.Width > 0 && i.ScreenRect.Height > 0)
-                    .OrderBy(i => i.SlotY)
-                    .ThenBy(i => i.SlotX)
-                    .ToList();
+                // LỌC CHÍNH XÁC: CHỈ LẤY CÁC MÓN TIMELESS JEWEL ĐỦ ĐIỀU KIỆN (KHÔNG LIA VÀO ĐỒ KHÁC)
+                List<ShopItemInfo> itemsToScan;
+                if (_settings.OnlyBuyTimelessJewels?.Value == true)
+                {
+                    itemsToScan = currentItems
+                        .Where(i => i != null && i.IsTimelessJewel && ItemFilterEngine.MatchesTimelessCandidate(i, _settings))
+                        .OrderBy(i => i.SlotY)
+                        .ThenBy(i => i.SlotX)
+                        .ToList();
+                }
+                else
+                {
+                    var activeRules = _settings.GetActiveRules();
+                    itemsToScan = currentItems
+                        .Where(i => i != null && ItemFilterEngine.MatchesAnyRule(i, activeRules))
+                        .OrderBy(i => i.SlotY)
+                        .ThenBy(i => i.SlotX)
+                        .ToList();
+                }
 
                 if (itemsToScan.Count == 0) continue;
 
-                LogHelper.Info($"Bắt đầu tự động lia chuột quét {itemsToScan.Count} vật phẩm trong Shop Tab {tabIndex + 1}...");
+                LogHelper.Info($"Tìm thấy {itemsToScan.Count} viên Timeless Jewel hợp điều kiện trong Tab {tabIndex + 1}. Bắt đầu lia chuột quét giá và mua...");
 
                 foreach (var item in itemsToScan)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                    // 1. TỰ ĐỘNG DI CHUỘT LƯỚT QUA Ô ĐỒ ĐỂ NẠP DỮ LIỆU TOOLTIP VÀ GIÁ
+                    // 1. TỰ ĐỘNG DI CHUỘT LƯỚT QUA Ô NGỌC TIMELESS ĐỂ NẠP DỮ LIỆU TOOLTIP VÀ GIÁ
                     MouseHelper.MoveMouseWithJitter(item.ScreenRect, 8f);
                     yield return new WaitTime(MouseHelper.GetRandomDelay(60, 90));
 
                     // 2. Cập nhật dữ liệu giá, tên, tướng, seed từ Tooltip vừa hiển thị
                     UpdateItemFromLiveHover(_gc, item);
-
-                    // 3. Kiểm tra xem có phải Timeless Jewel đạt chuẩn tướng/seed không
-                    if (_settings.OnlyBuyTimelessJewels?.Value == true)
-                    {
-                        if (!item.IsTimelessJewel || !ItemFilterEngine.MatchesTimelessCandidate(item, _settings))
-                        {
-                            // Không phải Timeless Jewel hợp lệ -> Tiếp tục lướt qua ô tiếp theo
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        var activeRules = _settings.GetActiveRules();
-                        if (!ItemFilterEngine.MatchesAnyRule(item, activeRules))
-                        {
-                            continue;
-                        }
-                    }
 
                     // 4. KIỂM TRA GIÁ: CHỈ MUA KHI GIÁ LÀ CHAOS (10 - 50c), TỪ CHỐI 100% MÓN GIÁ DIVINE ORB
                     if (!ItemFilterEngine.MatchesTimelessSettings(item, _settings))
