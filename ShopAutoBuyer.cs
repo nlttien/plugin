@@ -263,15 +263,15 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
                         if (labelMode == "Compact (Seed Only)")
                         {
-                            var compactLabel = isConfirmedChaos 
+                            var compactLabel = isConfirmedBuy 
                                 ? (item.TimelessSeed > 0 ? $"{item.TimelessSeed}" : "BUY")
                                 : (item.TimelessSeed > 0 ? $"{item.TimelessSeed} (?)" : "SCAN");
                             var textPos = new Vector2(rect.Left + 2, rect.Top + 2);
-                            Graphics.DrawText(compactLabel, textPos, isConfirmedChaos ? Color.Yellow : Color.LightCyan);
+                            Graphics.DrawText(compactLabel, textPos, isConfirmedBuy ? Color.Yellow : Color.LightCyan);
                         }
                         else if (labelMode == "Full Name")
                         {
-                            var labelText = isConfirmedChaos ? $"BUY: {item.DisplayName}" : $"SCAN: {item.DisplayName}";
+                            var labelText = isConfirmedBuy ? $"BUY: {item.DisplayName}" : $"SCAN: {item.DisplayName}";
                             var textPos = new Vector2(rect.Left + 2, rect.Top - 14);
                             Graphics.DrawText(labelText, textPos, color);
                         }
