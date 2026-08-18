@@ -489,7 +489,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     {
         try
         {
-            var bridgeFile = @"D:\codecuatien\trade_bridge.json";
+            var bridgeFile = BridgePathHelper.GetBridgeFilePath();
             var json = $"{{\"status\":\"{status}\",\"items_bought\":{boughtCount},\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
             File.WriteAllText(bridgeFile, json);
         }

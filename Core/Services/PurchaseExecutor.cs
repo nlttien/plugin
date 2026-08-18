@@ -258,7 +258,7 @@ public class PurchaseExecutor
             // Ghi tín hiệu hoàn thành kèm danh sách chi tiết món đồ đã mua vào file cầu nối trade_bridge.json
             try
             {
-                var bridgeFile = @"D:\codecuatien\trade_bridge.json";
+                var bridgeFile = BridgePathHelper.GetBridgeFilePath();
                 var statusStr = RequestStop ? "STOPPED" : "COMPLETED";
                 var detailsEscaped = string.Join(",", purchasedDetails.Select(d => $"\"{d.Replace("\"", "\\\"")}\""));
                 var json = $"{{\"status\":\"{statusStr}\",\"items_bought\":{totalPurchasedCount},\"last_items\":[{detailsEscaped}],\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
@@ -568,11 +568,7 @@ public class PurchaseExecutor
 
     public static void AppendToHistoryLog(string logLine)
     {
-        var paths = new[]
-        {
-            @"D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\purchase_history.txt",
-            @"D:\codecuatien\purchase_history.txt"
-        };
+        var paths = BridgePathHelper.GetHistoryFilePaths();
 
         foreach (var path in paths)
         {

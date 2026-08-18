@@ -469,7 +469,7 @@ public class StashDepositService
     {
         try
         {
-            var bridgeFile = @"D:\codecuatien\trade_bridge.json";
+            var bridgeFile = BridgePathHelper.GetBridgeFilePath();
             var json = $"{{\"status\":\"{status}\",\"items_bought\":0,\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
             File.WriteAllText(bridgeFile, json);
         }
