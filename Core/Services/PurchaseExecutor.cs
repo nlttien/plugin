@@ -79,7 +79,7 @@ public class PurchaseExecutor
             }
 
             // ----------------------------------------------------
-            // BƯỚC 1: LỌC TẤT CẢ CÁC VIÊN TIMELESS JEWEL ĐẠT CHUẨN ĐỂ QUÉT GIÁ TRƯỚC
+            // BƯỚC 1: LỌC TẤT CẢ CÁC VẬT PHẨM ĐẠT CHUẨN ĐỂ QUÉT GIÁ TRƯỚC
             // ----------------------------------------------------
             List<ShopItemInfo> candidateItems;
             if (_settings.OnlyBuyTimelessJewels?.Value == true)
@@ -102,14 +102,14 @@ public class PurchaseExecutor
 
             if (candidateItems.Count > 0)
             {
-                LogHelper.Info($"[BƯỚC 1: QUÉT GIÁ] Tìm thấy {candidateItems.Count} viên Timeless Jewel trong Tab. Bắt đầu lia chuột quét giá...");
+                LogHelper.Info($"[BƯỚC 1: QUÉT GIÁ] Tìm thấy {candidateItems.Count} vật phẩm phù hợp trong Tab. Bắt đầu lia chuột quét giá...");
 
-                // QUÉT TOÀN BỘ CÁC VIÊN TIMELESS TRƯỚC
+                // QUÉT TOÀN BỘ CÁC VẬT PHẨM TRƯỚC ĐỂ NẠP GIÁ VÀO RAM
                 foreach (var item in candidateItems)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                    // Lia chuột qua viên ngọc để nạp dữ liệu Tooltip vào RAM (Đợi 130-150ms cho game nạp xong Tooltip)
+                    // Lia chuột qua vật phẩm để nạp dữ liệu Tooltip vào RAM (Đợi 130-150ms cho game nạp xong Tooltip)
                     MouseHelper.MoveMouseWithJitter(item.ScreenRect, 6f);
                     yield return new WaitTime(MouseHelper.GetRandomDelay(130, 150));
 
@@ -119,28 +119,39 @@ public class PurchaseExecutor
                 }
 
                 // ----------------------------------------------------
-                // BƯỚC 2: TIẾN HÀNH MUA CÁC VIÊN ĐẠT CHUẨN GIÁ (10 - 50 CHAOS)
+                // BƯỚC 2: TIẾN HÀNH MUA CÁC VẬT PHẨM ĐẠT CHUẨN GIÁ
                 // ----------------------------------------------------
-                var validItemsToBuy = candidateItems
-                    .Where(i => ItemFilterEngine.MatchesTimelessSettings(i, _settings))
-                    .ToList();
-
-                if (validItemsToBuy.Count == 0)
+                List<ShopItemInfo> validItemsToBuy;
+                if (_settings.OnlyBuyTimelessJewels?.Value == true)
                 {
-                    LogHelper.Info($"[HOÀN TẤT QUÉT] Đã quét xong {candidateItems.Count} viên ngọc. Không có viên nào có giá Chaos hợp lệ (10-50c).");
+                    validItemsToBuy = candidateItems
+                        .Where(i => ItemFilterEngine.MatchesTimelessSettings(i, _settings))
+                        .ToList();
                 }
                 else
                 {
-                    LogHelper.Info($"[BƯỚC 2: MUA ĐỒ] Tìm thấy {validItemsToBuy.Count} viên ngọc đạt chuẩn giá Chaos (10-50c). Bắt đầu mua...");
+                    var activeRules = _settings.GetActiveRules();
+                    validItemsToBuy = candidateItems
+                        .Where(i => ItemFilterEngine.MatchesGeneralSettings(i, _settings, activeRules))
+                        .ToList();
+                }
+
+                if (validItemsToBuy.Count == 0)
+                {
+                    LogHelper.Info($"[HOÀN TẤT QUÉT] Đã quét xong {candidateItems.Count} vật phẩm. Không có vật phẩm nào đạt chuẩn điều kiện giá.");
+                }
+                else
+                {
+                    LogHelper.Info($"[BƯỚC 2: MUA ĐỒ] Tìm thấy {validItemsToBuy.Count} vật phẩm đạt chuẩn giá. Bắt đầu mua...");
 
                     foreach (var item in validItemsToBuy)
                     {
                         if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                        // 1. Kiểm tra an toàn: Nếu bị áo giáp lớn đè -> BỎ QUA NGAY
-                        if (IsOccludedByLargerItem(item, currentItems))
+                        // 1. Kiểm tra an toàn (nếu ở chế độ ngọc): Nếu bị áo giáp lớn đè -> BỎ QUA NGAY
+                        if (_settings.OnlyBuyTimelessJewels?.Value == true && IsOccludedByLargerItem(item, currentItems))
                         {
-                            LogHelper.Warn($"[BỎ QUA AN TOÀN] Ô ngọc {item.DisplayName} bị áo giáp/trang bị đè lên! Bỏ qua để không mua nhầm.");
+                            LogHelper.Warn($"[BỎ QUA AN TOÀN] Ô {item.DisplayName} bị áo giáp/trang bị đè lên! Bỏ qua để không mua nhầm.");
                             continue;
                         }
 
@@ -158,8 +169,8 @@ public class PurchaseExecutor
                         MouseHelper.MoveMouse(clickTarget);
                         yield return new WaitTime(100);
 
-                        // 5. KIỂM TRA TRỰC TIẾP DƯỚI CON TRỎ CHUỘT (Live Hover Protection): Tuyệt đối không click nếu là Áo giáp có socket
-                        if (IsHoveringNonJewelEquipment(_gc))
+                        // 5. KIỂM TRA TRỰC TIẾP DƯỚI CON TRỎ CHUỘT (CHỈ kích hoạt khi mua ngọc Timeless)
+                        if (_settings.OnlyBuyTimelessJewels?.Value == true && IsHoveringNonJewelEquipment(_gc))
                         {
                             LogHelper.Warn($"[HỦY CLICK AN TOÀN] Con trỏ chuột đang trỏ vào Áo giáp/Trang bị có socket! Hủy click ngay lập tức.");
                             continue;

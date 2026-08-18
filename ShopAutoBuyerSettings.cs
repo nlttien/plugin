@@ -84,7 +84,7 @@ public class ShopAutoBuyerSettings : ISettings
     public RangeNode<int> MinChaosPrice { get; set; } = new RangeNode<int>(10, 0, 500);
 
     [Menu("Gia Chaos Toi Da (Max Chaos)")]
-    public RangeNode<int> MaxChaosPrice { get; set; } = new RangeNode<int>(50, 0, 500);
+    public RangeNode<int> MaxChaosPrice { get; set; } = new RangeNode<int>(300, 0, 5000);
 
     [Menu("Mua Theo Gia Divine Orb")]
     public ToggleNode BuyDivinePrice { get; set; } = new ToggleNode(false);
@@ -126,8 +126,8 @@ public class ShopAutoBuyerSettings : ISettings
     // ==========================================
     // GENERAL WHITELIST (Khi tat OnlyBuyTimelessJewels)
     // ==========================================
-    [Menu("Danh Sach Ten Item Khac")]
-    public TextNode BaseNamesFilter { get; set; } = new TextNode("Amethyst Ring, Heavy Belt, Two-Stone Ring, Uncut");
+    [Menu("Danh Sach Ten Item Can Mua (De trong = Mua moi item)")]
+    public TextNode BaseNamesFilter { get; set; } = new TextNode("");
     public ToggleNode BuyNormal { get; set; } = new ToggleNode(true);
     public ToggleNode BuyMagic { get; set; } = new ToggleNode(true);
     public ToggleNode BuyRare { get; set; } = new ToggleNode(true);

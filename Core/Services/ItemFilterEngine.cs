@@ -51,12 +51,11 @@ public static class ItemFilterEngine
             if (!matchedSeed) return false;
         }
 
-        // 4. Nếu chuỗi giá có chữ Divine -> Loại ngay lập tức
-        if (!string.IsNullOrEmpty(item.CostString) && item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase))
+        // 4. Nếu chuỗi giá có chữ Divine -> Loại ngay lập tức nếu không bật BuyDivinePrice
+        if (!string.IsNullOrEmpty(item.CostString) && item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase) && settings.BuyDivinePrice?.Value != true)
             return false;
 
         // 5. NẾU MÓN ĐỒ ĐÃ ĐƯỢC QUÉT GIÁ (item.Cost != null)
-        // Bắt buộc phải thỏa mãn điều kiện giá (10 - 50 Chaos). Món 70c, 100c, Divine... ĐỀU BỊ LOẠI NGAY (KHÔNG HIỆN KHUNG)
         if (item.Cost != null)
         {
             if (!MatchesTimelessSettings(item, settings))
@@ -69,7 +68,7 @@ public static class ItemFilterEngine
     }
 
     /// <summary>
-    /// Kiểm tra toàn diện bao gồm cả giá: BẮT BUỘC PHẢI LÀ CHAOS ORB VÀ TỪ 10 ĐẾN 50 CHAOS.
+    /// Kiểm tra toàn diện bao gồm cả giá cho Timeless Jewel.
     /// </summary>
     public static bool MatchesTimelessSettings(ShopItemInfo item, ShopAutoBuyerSettings settings)
     {
@@ -110,26 +109,24 @@ public static class ItemFilterEngine
             if (!matchedSeed) return false;
         }
 
-        // 4. KIỂM TRA GIÁ: BẮT BUỘC CHAOS TỪ 10 ĐẾN 50c
+        // 4. KIỂM TRA GIÁ:
         if (item.Cost != null)
         {
             var curr = item.Cost.CurrencyName ?? string.Empty;
 
-            // BẮT BUỘC TỪ CHỐI BẤT KỲ MÓN NÀO CÓ GIÁ DIVINE
             if (curr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
             {
-                return false;
+                if (settings.BuyDivinePrice?.Value != true) return false;
+                var maxDiv = settings.MaxDivinePrice?.Value ?? 0;
+                if (maxDiv > 0 && item.Cost.Amount > maxDiv) return false;
             }
-
-            // BƯỚC 4.2: BẮT BUỘC PHẢI LÀ CHAOS ORB
-            if (curr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
+            else if (curr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
             {
                 if (settings.BuyChaosPrice?.Value == false) return false;
 
-                var minChaos = settings.MinChaosPrice?.Value ?? 10;
-                var maxChaos = settings.MaxChaosPrice?.Value ?? 50;
+                var minChaos = settings.MinChaosPrice?.Value ?? 0;
+                var maxChaos = settings.MaxChaosPrice?.Value ?? 5000;
 
-                // Bắt buộc trong khoảng 10 đến 50 Chaos (ví dụ: 70c > 50c sẽ trả về false)
                 if (item.Cost.Amount < minChaos || (maxChaos > 0 && item.Cost.Amount > maxChaos))
                 {
                     return false;
@@ -137,7 +134,6 @@ public static class ItemFilterEngine
             }
             else
             {
-                // Bất kỳ loại tiền nào khác Chaos (Divine, Mirror, Exalt, rỗng...) -> TỪ CHỐI!
                 return false;
             }
 
@@ -150,8 +146,51 @@ public static class ItemFilterEngine
         }
         else
         {
-            // NẾU CHƯA ĐỌC ĐƯỢC GIÁ -> TỪ CHỐI
             return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Kiểm tra toàn diện cho các vật phẩm thông thường (Invitation, Map, Currency, Trang bị...).
+    /// </summary>
+    public static bool MatchesGeneralSettings(ShopItemInfo item, ShopAutoBuyerSettings settings, IEnumerable<FilterRule> activeRules)
+    {
+        if (item == null || settings == null) return false;
+
+        // 1. Phải thỏa mãn luật lọc (Rarity, BaseName, Sockets...)
+        if (!MatchesAnyRule(item, activeRules)) return false;
+
+        // 2. Kiểm tra giới hạn giá nếu đã đọc được giá từ RAM
+        if (item.Cost != null)
+        {
+            var curr = item.Cost.CurrencyName ?? string.Empty;
+
+            if (curr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
+            {
+                if (settings.BuyDivinePrice?.Value != true) return false;
+                var maxDiv = settings.MaxDivinePrice?.Value ?? 0;
+                if (maxDiv > 0 && item.Cost.Amount > maxDiv) return false;
+            }
+            else if (curr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
+            {
+                if (settings.BuyChaosPrice?.Value == false) return false;
+
+                var minChaos = settings.MinChaosPrice?.Value ?? 0;
+                var maxChaos = settings.MaxChaosPrice?.Value ?? 5000;
+
+                if (item.Cost.Amount < minChaos || (maxChaos > 0 && item.Cost.Amount > maxChaos))
+                {
+                    return false;
+                }
+            }
+
+            var maxGold = settings.MaxGoldPrice?.Value ?? 0;
+            if (maxGold > 0 && item.Cost.GoldAmount > maxGold)
+            {
+                return false;
+            }
         }
 
         return true;
