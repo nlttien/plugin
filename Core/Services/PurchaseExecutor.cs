@@ -42,7 +42,7 @@ public class PurchaseExecutor
 
         IsRunning = true;
         RequestStop = false;
-        LogHelper.Info("=== Bắt đầu tiến trình tự động quét và mua đồ trong Shop ===");
+        LogHelper.Info("=== Bắt đầu tiến trình tự động lướt quét tất cả ô đồ trong Shop ===");
 
         var totalPurchasedCount = 0;
 
@@ -86,62 +86,61 @@ public class PurchaseExecutor
                     if (currentItems == null || currentItems.Count == 0) continue;
                 }
 
-                // Lấy danh sách các ứng viên Timeless Jewel cần quét tự động
-                List<ShopItemInfo> candidateItems;
-                if (_settings.OnlyBuyTimelessJewels?.Value == true)
-                {
-                    candidateItems = currentItems.Where(i => ItemFilterEngine.MatchesTimelessCandidate(i, _settings)).ToList();
-                }
-                else
-                {
-                    var activeRules = _settings.GetActiveRules();
-                    candidateItems = currentItems.Where(i => ItemFilterEngine.MatchesAnyRule(i, activeRules)).ToList();
-                }
+                // Sắp xếp toàn bộ vật phẩm trong Tab từ trên xuống dưới, từ trái qua phải để bot lia chuột mượt mà
+                var itemsToScan = currentItems
+                    .Where(i => i != null && i.ScreenRect.Width > 0 && i.ScreenRect.Height > 0)
+                    .OrderBy(i => i.SlotY)
+                    .ThenBy(i => i.SlotX)
+                    .ToList();
 
-                if (candidateItems.Count == 0)
-                {
-                    continue;
-                }
+                if (itemsToScan.Count == 0) continue;
 
-                LogHelper.Info($"Tìm thấy {candidateItems.Count} ứng viên Timeless Jewel trong Tab {tabIndex + 1}. Bắt đầu tự động quét giá...");
+                LogHelper.Info($"Bắt đầu tự động lia chuột quét {itemsToScan.Count} vật phẩm trong Shop Tab {tabIndex + 1}...");
 
-                foreach (var item in candidateItems)
+                foreach (var item in itemsToScan)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                    if (_settings.OnlyBuyTimelessJewels?.Value == true && !item.IsTimelessJewel)
+                    // 1. TỰ ĐỘNG DI CHUỘT LƯỚT QUA Ô ĐỒ ĐỂ NẠP DỮ LIỆU TOOLTIP VÀ GIÁ
+                    MouseHelper.MoveMouseWithJitter(item.ScreenRect, 8f);
+                    yield return new WaitTime(MouseHelper.GetRandomDelay(60, 90));
+
+                    // 2. Cập nhật dữ liệu giá, tên, tướng, seed từ Tooltip vừa hiển thị
+                    UpdateItemFromLiveHover(_gc, item);
+
+                    // 3. Kiểm tra xem có phải Timeless Jewel đạt chuẩn tướng/seed không
+                    if (_settings.OnlyBuyTimelessJewels?.Value == true)
                     {
-                        LogHelper.Warn($"[BỎ QUA] {item.DisplayName} không phải Timeless Jewel!");
-                        continue;
+                        if (!item.IsTimelessJewel || !ItemFilterEngine.MatchesTimelessCandidate(item, _settings))
+                        {
+                            // Không phải Timeless Jewel hợp lệ -> Tiếp tục lướt qua ô tiếp theo
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        var activeRules = _settings.GetActiveRules();
+                        if (!ItemFilterEngine.MatchesAnyRule(item, activeRules))
+                        {
+                            continue;
+                        }
                     }
 
-                    // 1. Kiểm tra ô trống hành trang
+                    // 4. KIỂM TRA GIÁ: CHỈ MUA KHI GIÁ LÀ CHAOS (10 - 50c), TỪ CHỐI 100% MÓN GIÁ DIVINE ORB
+                    if (!ItemFilterEngine.MatchesTimelessSettings(item, _settings))
+                    {
+                        LogHelper.Warn($"[BỎ QUA] {item.DisplayName} vì giá không hợp lệ: {item.CostString}");
+                        continue; // Bỏ qua không bấm mua!
+                    }
+
+                    // 5. Kiểm tra ô trống hành trang trước khi mua
                     if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height))
                     {
                         LogHelper.Warn("Hành trang (Inventory) đã đầy! Dừng tự động mua.");
                         yield break;
                     }
 
-                    // 2. TỰ ĐỘNG DI CHUỘT ĐẾN VỊ TRÍ ITEM ĐỂ QUÉT GIÁ (KHÔNG CẦN NGƯỜI DÙNG TỰ RÊ CHUỘT)
-                    MouseHelper.MoveMouseWithJitter(item.ScreenRect, 8f);
-                    yield return new WaitTime(MouseHelper.GetRandomDelay(80, 120));
-
-                    // 3. Đọc giá trực tiếp từ Tooltip vừa xuất hiện trong RAM
-                    var liveCost = ReadLiveHoveredCost(_gc);
-                    if (liveCost != null)
-                    {
-                        item.Cost = liveCost;
-                        item.CostString = $"{liveCost.Amount} {liveCost.CurrencyName}";
-                    }
-
-                    // 4. KIỂM TRA GIÁ: CHỈ MUA KHI GIÁ LÀ CHAOS TỪ 10 ĐẾN 50c, TỪ CHỐI 100% DIVINE ORB
-                    if (!ItemFilterEngine.MatchesTimelessSettings(item, _settings))
-                    {
-                        LogHelper.Warn($"[BỎ QUA KHÔNG MUA] {item.DisplayName} vì giá không hợp lệ: {item.CostString}");
-                        continue; // Bỏ qua không bấm mua!
-                    }
-
-                    // 5. THỰC HIỆN THAO TÁC MUA NGAY LẬP TỨC (Ctrl + Left Click)
+                    // 6. THỰC HIỆN BẤM MUA NGAY LẬP TỨC (Ctrl + Left Click)
                     MouseHelper.CtrlLeftClick();
 
                     // Đợi server phản hồi và quét chủ động xem hộp thoại cảnh báo giá có xuất hiện không (trong 450ms)
@@ -156,7 +155,7 @@ public class PurchaseExecutor
                         }
                     }
 
-                    // 6. BẤM NÚT [ OK ] ĐÚNG 1 LẦN KHI CÓ HỘP THOẠI
+                    // 7. BẤM NÚT [ OK ] ĐÚNG 1 LẦN KHI CÓ HỘP THOẠI CẢNH BÁO GIÁ
                     if (modalDetected || IsPriceDifferenceModalOpen(_gc))
                     {
                         LogHelper.Info("Phát hiện hộp thoại cảnh báo giá! Bấm [ OK ] ngay...");
@@ -175,7 +174,7 @@ public class PurchaseExecutor
                     totalPurchasedCount++;
                     LogHelper.Info($"[ĐÃ MUA] {item.DisplayName} (Giá: {item.CostString})");
 
-                    // 7. Nghỉ ngơi giữa các lần mua
+                    // 8. Nghỉ ngơi giữa các lần mua
                     yield return new WaitTime(MouseHelper.GetRandomDelay(_settings.MinDelayMs.Value, _settings.MaxDelayMs.Value));
                 }
             }
@@ -197,55 +196,87 @@ public class PurchaseExecutor
         }
     }
 
-    public static CurrencyCost? ReadLiveHoveredCost(GameController gc)
+    public static void UpdateItemFromLiveHover(GameController gc, ShopItemInfo item)
     {
         try
         {
-            if (gc == null) return null;
+            if (gc == null || item == null) return;
             var ingameState = gc.IngameState ?? gc.Game?.IngameState;
-            if (ingameState == null) return null;
+            if (ingameState == null) return;
 
-            var costParts = new List<string>();
+            var texts = new List<string>();
 
             if (ingameState.UIHover != null && ingameState.UIHover.IsValid)
             {
-                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHover, costParts, 0);
+                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHover, texts, 0);
             }
             if (ingameState.UIHoverTooltip != null && ingameState.UIHoverTooltip.IsValid)
             {
-                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHoverTooltip, costParts, 0);
+                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHoverTooltip, texts, 0);
             }
             if (ingameState.UIHoverElement != null && ingameState.UIHoverElement.IsValid)
             {
-                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHoverElement, costParts, 0);
+                Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHoverElement, texts, 0);
             }
 
-            if (costParts.Count > 0)
+            if (texts.Count > 0)
             {
-                var fullCostStr = string.Join(" ", costParts);
-                var cost = new CurrencyCost();
+                var fullStr = string.Join(" ", texts);
 
-                if (fullCostStr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
+                // 1. Cập nhật Cost
+                var cost = new CurrencyCost();
+                if (fullStr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
                 {
                     cost.CurrencyName = "Divine Orb";
-                    var divMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Divine", RegexOptions.IgnoreCase);
-                    if (!divMatch.Success) divMatch = Regex.Match(fullCostStr, @"Divine\s*(?:Orb)?\s*x?\s*(\d+)", RegexOptions.IgnoreCase);
+                    var divMatch = Regex.Match(fullStr, @"(\d+)\s*x?\s*Divine", RegexOptions.IgnoreCase);
+                    if (!divMatch.Success) divMatch = Regex.Match(fullStr, @"Divine\s*(?:Orb)?\s*x?\s*(\d+)", RegexOptions.IgnoreCase);
                     cost.Amount = (divMatch.Success && int.TryParse(divMatch.Groups[1].Value, out var divAmt)) ? divAmt : 1;
-                    return cost;
+                    item.Cost = cost;
+                    item.CostString = $"{cost.Amount} Divine Orb";
                 }
-                else if (fullCostStr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
+                else if (fullStr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
                 {
                     cost.CurrencyName = "Chaos Orb";
-                    var chaosMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
-                    if (!chaosMatch.Success) chaosMatch = Regex.Match(fullCostStr, @"Chaos\s*(?:Orb)?\s*x?\s*(\d+)", RegexOptions.IgnoreCase);
+                    var chaosMatch = Regex.Match(fullStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
+                    if (!chaosMatch.Success) chaosMatch = Regex.Match(fullStr, @"Chaos\s*(?:Orb)?\s*x?\s*(\d+)", RegexOptions.IgnoreCase);
                     cost.Amount = (chaosMatch.Success && int.TryParse(chaosMatch.Groups[1].Value, out var chaosAmt)) ? chaosAmt : 1;
-                    return cost;
+                    item.Cost = cost;
+                    item.CostString = $"{cost.Amount} Chaos Orb";
+                }
+
+                // 2. Cập nhật Gold nếu có
+                var goldMatch = Regex.Match(fullStr, @"([\d,]+)\s*Gold", RegexOptions.IgnoreCase);
+                if (goldMatch.Success)
+                {
+                    var goldDigits = goldMatch.Groups[1].Value.Replace(",", "");
+                    if (int.TryParse(goldDigits, out var goldAmt) && item.Cost != null)
+                    {
+                        item.Cost.GoldAmount = goldAmt;
+                    }
+                }
+
+                // 3. Cập nhật Seed nếu chưa có
+                if (item.TimelessSeed <= 0)
+                {
+                    var seedMatch = Regex.Match(fullStr, @"(?:service of|commissioned|bathed in the blood of|chanted|carved to glorify|of)\s*(\d{2,6})", RegexOptions.IgnoreCase);
+                    if (seedMatch.Success && int.TryParse(seedMatch.Groups[1].Value, out var seedVal))
+                    {
+                        item.TimelessSeed = seedVal;
+                    }
+                }
+
+                // 4. Cập nhật Leader nếu chưa có
+                if (string.IsNullOrEmpty(item.TimelessLeader))
+                {
+                    var leaderMatch = Regex.Match(fullStr, @"\b(Asenath|Balbala|Nasima|Doryani|Xibaqua|Zerphi|Kaom|Rakiata|Akoya|Avarius|Dominus|Maxarius|Cadiro|Caspiro|Victario)\b", RegexOptions.IgnoreCase);
+                    if (leaderMatch.Success)
+                    {
+                        item.TimelessLeader = leaderMatch.Groups[1].Value;
+                    }
                 }
             }
         }
         catch { }
-
-        return null;
     }
 
     public static bool IsPriceDifferenceModalOpen(GameController gc)
