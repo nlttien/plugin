@@ -225,14 +225,8 @@ public class PurchaseExecutor
                         RecentPurchases.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {fullBuyLog}");
                         if (RecentPurchases.Count > 10) RecentPurchases.RemoveAt(RecentPurchases.Count - 1);
 
-                        // Ghi vào file log lịch sử D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\purchase_history.txt
-                        try
-                        {
-                            var historyFile = @"D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\purchase_history.txt";
-                            var logLine = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ĐÃ MUA] {fullBuyLog}\n";
-                            File.AppendAllText(historyFile, logLine);
-                        }
-                        catch { }
+                        // Ghi vào file log lịch sử mua đồ (chống khóa file với FileShare.ReadWrite)
+                        AppendToHistoryLog($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ĐÃ MUA] {fullBuyLog}");
 
                         // 9. Nghỉ ngơi giữa các lần mua
                         yield return new WaitTime(MouseHelper.GetRandomDelay(_settings.MinDelayMs.Value, _settings.MaxDelayMs.Value));
@@ -568,5 +562,35 @@ public class PurchaseExecutor
         }
 
         return null;
+    }
+
+    public static void AppendToHistoryLog(string logLine)
+    {
+        var paths = new[]
+        {
+            @"D:\codecuatien\ExileApi-Compiled\Plugins\Source\ShopAutoBuyer\purchase_history.txt",
+            @"D:\codecuatien\purchase_history.txt"
+        };
+
+        foreach (var path in paths)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+
+                using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                using var writer = new StreamWriter(stream, System.Text.Encoding.UTF8);
+                writer.WriteLine(logLine);
+                writer.Flush();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Error($"Lỗi khi ghi lịch sử vào {path}: {ex.Message}");
+            }
+        }
     }
 }
