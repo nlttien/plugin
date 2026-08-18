@@ -111,7 +111,8 @@ public class StashDepositService
                     var stashEntity = FindStashEntity(isGuildStash);
                     if (stashEntity != null && stashEntity.IsValid)
                     {
-                        var screenPos = _gc.IngameState.Camera.WorldToScreen(stashEntity.Pos);
+                        var sharpDxPos = _gc.IngameState.Camera.WorldToScreen(stashEntity.Pos);
+                        var screenPos = new Vector2(sharpDxPos.X, sharpDxPos.Y);
                         LogHelper.Info($"[CLICK ENTITY RƯƠNG] Bấm vào vị trí rương {targetStashName} tại: ({screenPos.X:F0}, {screenPos.Y:F0})");
                         MouseHelper.LeftClickAt(screenPos, 100, 60);
                     }
@@ -155,7 +156,23 @@ public class StashDepositService
             // 2. Nếu còn sót đồ trong hành trang -> Ctrl + Click từng món vào Tab còn trống
             if (mode.Contains("Ctrl+Click", StringComparison.OrdinalIgnoreCase) || mode.Contains("Ket Hop", StringComparison.OrdinalIgnoreCase))
             {
-                yield return ExecuteCtrlClickDepositRoutine(isGuildStash);
+                var inventoryItems = InventorySpaceChecker.GetPlayerInventoryItems(_gc);
+                if (inventoryItems.Count > 0)
+                {
+                    LogHelper.Info($"[BƯỚC 4B: CTRL+CLICK] Bắt đầu cất {inventoryItems.Count} món đồ còn lại vào Stash...");
+                    foreach (var invItem in inventoryItems)
+                    {
+                        if (RequestStop || !IsStashOpen(isGuildStash)) yield break;
+                        if (invItem == null || !invItem.IsValid || !invItem.IsVisible) continue;
+
+                        var rect = invItem.GetClientRect();
+                        if (rect.Width <= 0 || rect.Height <= 0) continue;
+
+                        var targetPos = new Vector2(rect.Center.X, rect.Center.Y);
+                        MouseHelper.CtrlLeftClickAt(targetPos, 40, 40);
+                        yield return new WaitTime(60);
+                    }
+                }
             }
 
             yield return new WaitTime(300);
@@ -171,34 +188,9 @@ public class StashDepositService
             NotifyBridge("COMPLETED");
             LogHelper.Info(">>> [HOÀN TẤT CẤT ĐỒ] HÀNH TRANG ĐÃ SẠCH SẼ. TIẾP TỤC CHU KỲ MUA HÀNG! <<<");
         }
-        catch (Exception ex)
-        {
-            LogHelper.Error("Lỗi trong quá trình StashDepositService", ex);
-        }
         finally
         {
             IsDepositing = false;
-        }
-    }
-
-    private IEnumerator ExecuteCtrlClickDepositRoutine(bool isGuild)
-    {
-        var inventoryItems = InventorySpaceChecker.GetPlayerInventoryItems(_gc);
-        if (inventoryItems.Count == 0) yield break;
-
-        LogHelper.Info($"[BƯỚC 4B: CTRL+CLICK] Bắt đầu cất {inventoryItems.Count} món đồ còn lại vào Stash...");
-
-        foreach (var invItem in inventoryItems)
-        {
-            if (RequestStop || !IsStashOpen(isGuild)) yield break;
-            if (invItem == null || !invItem.IsValid || !invItem.IsVisible) continue;
-
-            var rect = invItem.GetClientRect();
-            if (rect.Width <= 0 || rect.Height <= 0) continue;
-
-            var targetPos = new Vector2(rect.Center.X, rect.Center.Y);
-            MouseHelper.CtrlLeftClickAt(targetPos, 40, 40);
-            yield return new WaitTime(60);
         }
     }
 
