@@ -304,30 +304,51 @@ public class Poe1ShopAdapter : IShopAdapter
 
             if (costParts.Count > 0)
             {
-                var fullCostStr = string.Join(", ", costParts);
+                var fullCostStr = string.Join(" ", costParts);
                 itemInfo.CostString = fullCostStr;
 
                 if (itemInfo.Cost == null) itemInfo.Cost = new CurrencyCost();
 
-                // Parse Divine Orb amount FIRST (e.g. "5x Divine Orb", "1 Divine")
-                var divineMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Divine", RegexOptions.IgnoreCase);
-                if (divineMatch.Success && int.TryParse(divineMatch.Groups[1].Value, out var divAmt))
+                // 1. Kiểm tra Divine Orb (ví dụ: "1x Divine Orb", "5x Divine", "1 Divine Orb", hoặc chỉ "Divine")
+                if (fullCostStr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
                 {
                     itemInfo.Cost.CurrencyName = "Divine Orb";
-                    itemInfo.Cost.Amount = divAmt;
+                    var divineMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Divine", RegexOptions.IgnoreCase);
+                    if (!divineMatch.Success)
+                    {
+                        divineMatch = Regex.Match(fullCostStr, @"Divine\s*(?:Orb)?\s*x?\s*(\d+)", RegexOptions.IgnoreCase);
+                    }
+
+                    if (divineMatch.Success && int.TryParse(divineMatch.Groups[1].Value, out var divAmt))
+                    {
+                        itemInfo.Cost.Amount = divAmt;
+                    }
+                    else
+                    {
+                        itemInfo.Cost.Amount = 1;
+                    }
                 }
-                else
+                // 2. Kiểm tra Chaos Orb (ví dụ: "20x Chaos Orb", "20 Chaos", "10x Chaos")
+                else if (fullCostStr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Parse Chaos Orb amount (e.g. "20x Chaos Orb", "20 Chaos")
+                    itemInfo.Cost.CurrencyName = "Chaos Orb";
                     var chaosMatch = Regex.Match(fullCostStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
+                    if (!chaosMatch.Success)
+                    {
+                        chaosMatch = Regex.Match(fullCostStr, @"Chaos\s*(?:Orb)?\s*x?\s*(\d+)", RegexOptions.IgnoreCase);
+                    }
+
                     if (chaosMatch.Success && int.TryParse(chaosMatch.Groups[1].Value, out var chaosAmt))
                     {
-                        itemInfo.Cost.CurrencyName = "Chaos Orb";
                         itemInfo.Cost.Amount = chaosAmt;
+                    }
+                    else
+                    {
+                        itemInfo.Cost.Amount = 1;
                     }
                 }
 
-                // Parse Gold amount (e.g. "10,920 Gold", "6,660 Gold")
+                // 3. Parse Gold amount (ví dụ: "10,920 Gold", "6,660 Gold")
                 var goldMatch = Regex.Match(fullCostStr, @"([\d,]+)\s*Gold", RegexOptions.IgnoreCase);
                 if (goldMatch.Success)
                 {
@@ -344,13 +365,25 @@ public class Poe1ShopAdapter : IShopAdapter
 
     public static void ExtractCostTextRecursive(Element? element, List<string> costParts, int depth)
     {
-        if (element == null || !element.IsValid || depth > 8) return;
+        if (element == null || !element.IsValid || depth > 10) return;
 
         var txt = (element.Text ?? string.Empty).Trim();
         var txtNoTags = (element.TextNoTags ?? string.Empty).Trim();
 
-        if (IsCostString(txt)) costParts.Add(txt);
-        else if (IsCostString(txtNoTags)) costParts.Add(txtNoTags);
+        if (!string.IsNullOrWhiteSpace(txt) && !costParts.Contains(txt))
+        {
+            if (IsCostString(txt) || Regex.IsMatch(txt, @"^\d+x?$"))
+            {
+                costParts.Add(txt);
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(txtNoTags) && !costParts.Contains(txtNoTags))
+        {
+            if (IsCostString(txtNoTags) || Regex.IsMatch(txtNoTags, @"^\d+x?$"))
+            {
+                costParts.Add(txtNoTags);
+            }
+        }
 
         if (element.Children != null)
         {

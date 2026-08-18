@@ -47,8 +47,10 @@ public static class ItemFilterEngine
             if (!matchedSeed) return false;
         }
 
-        // 4. KIỂM TRA CHẶT CHẼ GIÁ: TỪ CHỐI 100% TẤT CẢ MÓN GIÁ DIVINE ORB!
-        // CHỈ MUA VÀ HIỆN XANH CÁC MÓN BÁN BẰNG CHAOS ORB TỪ 10 ĐẾN 50 CHAOS!
+        // 4. KIỂM TRA CHẶT CHẼ GIÁ: TỪ CHỐI 100% TẤT CẢ MÓN GIÁ DIVINE HOẶC KHÔNG RÕ GIÁ!
+        // CHỈ CHẤP NHẬN VÀ HIỆN XANH KHI ĐÃ XÁC ĐỊNH ĐƯỢC GIÁ LÀ CHAOS VÀ NẰM TRONG KHOẢNG 10 - 50 CHAOS!
+
+        // BƯỚC 4.1: Nếu có bất kỳ dấu hiệu chữ Divine nào -> TỪ CHỐI NGAY 100%
         if (!string.IsNullOrEmpty(item.CostString) && item.CostString.Contains("Divine", StringComparison.OrdinalIgnoreCase))
         {
             return false;
@@ -64,7 +66,7 @@ public static class ItemFilterEngine
                 return false;
             }
 
-            // CHỈ CHẤP NHẬN CHAOS ORB TRONG KHOẢNG 10 - 50 CHAOS
+            // BƯỚC 4.2: BẮT BUỘC PHẢI LÀ CHAOS ORB
             if (curr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
             {
                 if (settings.BuyChaosPrice?.Value == false) return false;
@@ -72,14 +74,15 @@ public static class ItemFilterEngine
                 var minChaos = settings.MinChaosPrice?.Value ?? 10;
                 var maxChaos = settings.MaxChaosPrice?.Value ?? 50;
 
+                // Bắt buộc trong khoảng 10 đến 50 Chaos
                 if (item.Cost.Amount < minChaos || (maxChaos > 0 && item.Cost.Amount > maxChaos))
                 {
                     return false;
                 }
             }
-            else if (!string.IsNullOrWhiteSpace(curr))
+            else
             {
-                // Bỏ qua các loại tiền tệ khác không phải Chaos
+                // Bất kỳ loại tiền nào khác Chaos (Divine, Mirror, Exalt, rỗng...) -> TỪ CHỐI!
                 return false;
             }
 
@@ -89,6 +92,11 @@ public static class ItemFilterEngine
             {
                 return false;
             }
+        }
+        else
+        {
+            // NẾU CHƯA ĐỌC ĐƯỢC GIÁ (item.Cost == null) -> BẮT BUỘC TỪ CHỐI KHÔNG HIỆN XANH!
+            return false;
         }
 
         return true;
