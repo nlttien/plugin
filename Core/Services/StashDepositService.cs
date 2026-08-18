@@ -143,23 +143,36 @@ public class StashDepositService
             yield return new WaitTime(350);
 
             // BƯỚC 4: TIẾN HÀNH CẤT ĐỒ
-            var mode = _settings.DepositMode?.Value ?? "Ket Hop Ca Hai";
+            var mode = _settings.DepositMode?.Value ?? "Dung Stashie (F3) + Nut Cat Nhanh (Anh 2)";
 
-            // 1. Click Nút Cất Nhanh Affinity (Ảnh 2)
-            if (mode.Contains("Nut Cat Nhanh", StringComparison.OrdinalIgnoreCase) || mode.Contains("Ket Hop", StringComparison.OrdinalIgnoreCase))
+            // 1. Kích hoạt Plugin Stashie bằng phím tắt (Mặc định F3)
+            if (_settings.UseStashiePlugin?.Value == true || mode.Contains("Stashie", StringComparison.OrdinalIgnoreCase))
             {
-                LogHelper.Info("[BƯỚC 4A] Bấm nút cất nhanh Affinity (Mũi tên sang trái cạnh số Gold)...");
+                var stashieKey = _settings.StashieHotkey?.Value ?? Keys.F3;
+                LogHelper.Info($"[BƯỚC 4A: STASHIE] Bấm phím {stashieKey} kích hoạt Stashie tự động phân loại cất đồ vào từng Tab...");
+                Input.KeyDown(stashieKey);
+                Thread.Sleep(60);
+                Input.KeyUp(stashieKey);
+                
+                // Đợi Stashie hoàn tất phân loại và cất đồ vào các Tab
+                yield return new WaitTime(1500);
+            }
+
+            // 2. Click Nút Cất Nhanh Affinity (Ảnh 2)
+            if (mode.Contains("Nut Cat Nhanh", StringComparison.OrdinalIgnoreCase))
+            {
+                LogHelper.Info("[BƯỚC 4B] Bấm nút cất nhanh Affinity (Mũi tên sang trái cạnh số Gold)...");
                 ClickAffinityDepositButton();
                 yield return new WaitTime(500);
             }
 
-            // 2. Nếu còn sót đồ trong hành trang -> Ctrl + Click từng món vào Tab còn trống
-            if (mode.Contains("Ctrl+Click", StringComparison.OrdinalIgnoreCase) || mode.Contains("Ket Hop", StringComparison.OrdinalIgnoreCase))
+            // 3. Nếu còn sót đồ trong hành trang -> Ctrl + Click từng món vào Tab còn trống
+            if (mode.Contains("Ctrl+Click", StringComparison.OrdinalIgnoreCase))
             {
                 var inventoryItems = InventorySpaceChecker.GetPlayerInventoryItems(_gc);
                 if (inventoryItems.Count > 0)
                 {
-                    LogHelper.Info($"[BƯỚC 4B: CTRL+CLICK] Bắt đầu cất {inventoryItems.Count} món đồ còn lại vào Stash...");
+                    LogHelper.Info($"[BƯỚC 4C: CTRL+CLICK] Bắt đầu cất {inventoryItems.Count} món đồ còn lại vào Stash...");
                     foreach (var invItem in inventoryItems)
                     {
                         if (RequestStop || !IsStashOpen(isGuildStash)) yield break;

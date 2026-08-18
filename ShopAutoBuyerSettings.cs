@@ -43,6 +43,12 @@ public class ShopAutoBuyerSettings : ISettings
     [Menu("Phim Tat Ve Hideout (Mac dinh F2)")]
     public HotkeyNode HomeHotkey { get; set; } = new HotkeyNode(Keys.F2);
 
+    [Menu("Dung Plugin Stashie De Cat Do (Phim Tat F3)")]
+    public ToggleNode UseStashiePlugin { get; set; } = new ToggleNode(true);
+
+    [Menu("Phim Tat Stashie (Mac dinh F3)")]
+    public HotkeyNode StashieHotkey { get; set; } = new HotkeyNode(Keys.F3);
+
     [Menu("Loai Ruong Muon Cat Do")]
     public ListNode StashType { get; set; } = new ListNode
     {
@@ -53,8 +59,8 @@ public class ShopAutoBuyerSettings : ISettings
     [Menu("Che Do Cat Do")]
     public ListNode DepositMode { get; set; } = new ListNode
     {
-        Values = new List<string> { "Nut Cat Nhanh Affinity (Anh 2)", "Ctrl+Click Vao Tab Con Trong", "Ket Hop Ca Hai" },
-        Value = "Ket Hop Ca Hai"
+        Values = new List<string> { "Dung Stashie (F3) + Nut Cat Nhanh (Anh 2)", "Chi Dung Stashie (F3)", "Nut Cat Nhanh Affinity (Anh 2)", "Ctrl+Click Vao Tab Con Trong" },
+        Value = "Dung Stashie (F3) + Nut Cat Nhanh (Anh 2)"
     };
 
     [Menu("Nguong O Trong Toi Thieu (Con duoi X o thi ve cat do)")]
