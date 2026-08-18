@@ -27,6 +27,9 @@ public class PurchaseExecutor
     // Bộ nhớ cache lưu giá theo con trỏ bộ nhớ Address duy nhất của từng ô UI đồ trong game
     public static readonly Dictionary<long, CurrencyCost> ScannedPriceCache = new();
 
+    // Lưu danh sách các vật phẩm vừa mua gần nhất để hiển thị lên giao diện
+    public static readonly List<string> RecentPurchases = new();
+
     public bool IsRunning { get; set; }
     public bool RequestStop { get; set; }
 
@@ -50,6 +53,7 @@ public class PurchaseExecutor
         LogHelper.Info("=== Bắt đầu tiến trình tự động quét & mua đồ trong Tab hiện tại ===");
 
         var totalPurchasedCount = 0;
+        var purchasedDetails = new List<string>();
 
         try
         {
@@ -208,7 +212,27 @@ public class PurchaseExecutor
                         }
 
                         totalPurchasedCount++;
-                        LogHelper.Info($"[ĐÃ MUA] {item.DisplayName} (Giá: {item.CostString})");
+
+                        // Tạo chuỗi thông tin giá chi tiết
+                        var priceText = !string.IsNullOrWhiteSpace(item.CostString) 
+                            ? item.CostString 
+                            : $"{item.Cost?.Amount} {item.Cost?.CurrencyName}";
+                        var goldText = item.Cost?.GoldAmount > 0 ? $" ({item.Cost.GoldAmount} Gold)" : "";
+                        var fullBuyLog = $"{item.DisplayName} | Giá: {priceText}{goldText}";
+
+                        LogHelper.Info($"[ĐÃ MUA THÀNH CÔNG] {fullBuyLog}");
+                        purchasedDetails.Add(fullBuyLog);
+                        RecentPurchases.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {fullBuyLog}");
+                        if (RecentPurchases.Count > 10) RecentPurchases.RemoveAt(RecentPurchases.Count - 1);
+
+                        // Ghi vào file log lịch sử D:\codecuatien\purchase_history.txt
+                        try
+                        {
+                            var historyFile = @"D:\codecuatien\purchase_history.txt";
+                            var logLine = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ĐÃ MUA] {fullBuyLog}\n";
+                            File.AppendAllText(historyFile, logLine);
+                        }
+                        catch { }
 
                         // 9. Nghỉ ngơi giữa các lần mua
                         yield return new WaitTime(MouseHelper.GetRandomDelay(_settings.MinDelayMs.Value, _settings.MaxDelayMs.Value));
@@ -221,12 +245,13 @@ public class PurchaseExecutor
         finally
         {
             IsRunning = false;
-            // Ghi tín hiệu hoàn thành vào file cầu nối trade_bridge.json
+            // Ghi tín hiệu hoàn thành kèm danh sách chi tiết món đồ đã mua vào file cầu nối trade_bridge.json
             try
             {
                 var bridgeFile = @"D:\codecuatien\trade_bridge.json";
                 var statusStr = RequestStop ? "STOPPED" : "COMPLETED";
-                var json = $"{{\"status\":\"{statusStr}\",\"items_bought\":{totalPurchasedCount},\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
+                var detailsEscaped = string.Join(",", purchasedDetails.Select(d => $"\"{d.Replace("\"", "\\\"")}\""));
+                var json = $"{{\"status\":\"{statusStr}\",\"items_bought\":{totalPurchasedCount},\"last_items\":[{detailsEscaped}],\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
                 File.WriteAllText(bridgeFile, json);
             }
             catch { }

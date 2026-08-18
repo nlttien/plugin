@@ -369,6 +369,11 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             }
             else
             {
+                if (PurchaseExecutor.RecentPurchases.Count > 0)
+                {
+                    Graphics.DrawText($"Vua mua: {PurchaseExecutor.RecentPurchases[0]}", new Vector2(boxX + 12, currentY), Color.GreenYellow);
+                    currentY += 20;
+                }
                 Graphics.DrawText("Khong con do nao trong shop -> Chuyen tiep!", new Vector2(boxX + 12, currentY), Color.Cyan);
             }
         }
