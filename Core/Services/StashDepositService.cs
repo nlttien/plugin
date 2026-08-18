@@ -244,14 +244,12 @@ public class StashDepositService
         }
     }
 
-    private static Element? FindAffinityButtonInMemory(IngameUIElements ingameUi)
+    private static Element? FindAffinityButtonInMemory(Element? ingameUi)
     {
         if (ingameUi == null) return null;
 
         var candidates = new List<Element>();
-        if (ingameUi.StashElement?.IsVisible == true) FindElementsRecursive(ingameUi.StashElement, candidates, 0);
-        if (ingameUi.GuildStashElement?.IsVisible == true) FindElementsRecursive(ingameUi.GuildStashElement, candidates, 0);
-        if (ingameUi.InventoryPanel?.IsVisible == true) FindElementsRecursive(ingameUi.InventoryPanel, candidates, 0);
+        FindElementsRecursive(ingameUi, candidates, 0);
 
         foreach (var c in candidates)
         {
