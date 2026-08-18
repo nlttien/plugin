@@ -26,8 +26,10 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     private DateTime _lastScanTime = DateTime.MinValue;
     private DateTime _lastNoItemsSignalTime = DateTime.MinValue;
     private DateTime _lastModalClickTime = DateTime.MinValue;
+    private DateTime _lastModalCheckTime = DateTime.MinValue;
     private bool _hasScannedCurrentShop = false;
     private bool _isShopOpenCached;
+    private bool _isPriceModalOpenCached = false;
 
     public override bool Initialise()
     {
@@ -41,6 +43,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         // Tu dong chuyen gia tri cu (787, 545) sang toa do chuan xac (750, 575)
         _isPausedByUser = false;
         _hasScannedCurrentShop = false;
+        _isPriceModalOpenCached = false;
         if (Settings != null)
         {
             if (Settings.OkButtonX.Value == 787) Settings.OkButtonX.Value = 750;
@@ -131,20 +134,24 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             if (isShopOpen && !_wasShopOpenLastFrame)
             {
                 _hasScannedCurrentShop = false;
+                _isPriceModalOpenCached = false;
                 PurchaseExecutor.ScannedPriceCache.Clear();
             }
             else if (!isShopOpen && _wasShopOpenLastFrame)
             {
                 _hasScannedCurrentShop = false;
+                _isPriceModalOpenCached = false;
                 PurchaseExecutor.ScannedPriceCache.Clear();
             }
 
             var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
 
-            // 3. TU DONG PHAT HIEN VA BAM NUT [ OK ] KHI XUAT HIEN HOP THOAI CANH BAO GIA
-            if (isShopOpen && PurchaseExecutor.IsPriceDifferenceModalOpen(GameController))
+            // 3. TU DONG PHAT HIEN VA BAM NUT [ OK ] KHI XUAT HIEN HOP THOAI CANH BAO GIA (Throttle moi 200ms de toi uu 100% FPS)
+            if (isShopOpen && (DateTime.Now - _lastModalCheckTime).TotalMilliseconds > 200)
             {
-                if ((DateTime.Now - _lastModalClickTime).TotalMilliseconds > 250)
+                _lastModalCheckTime = DateTime.Now;
+                _isPriceModalOpenCached = PurchaseExecutor.IsPriceDifferenceModalOpen(GameController);
+                if (_isPriceModalOpenCached && (DateTime.Now - _lastModalClickTime).TotalMilliseconds > 350)
                 {
                     _lastModalClickTime = DateTime.Now;
                     PurchaseExecutor.HandlePriceDifferenceModal(GameController, Settings);
@@ -276,7 +283,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             }
 
             // 3. Ve khung can chinh vi tri bam nut OK khi hop thoai canh bao gia xuat hien tren man hinh
-            if (isShopOpen && Settings != null && PurchaseExecutor.IsPriceDifferenceModalOpen(GameController))
+            if (isShopOpen && Settings != null && _isPriceModalOpenCached)
             {
                 var realWinRect = GameController.Window.GetWindowRectangleReal();
                 if (realWinRect.Width <= 0 || realWinRect.Height <= 0)

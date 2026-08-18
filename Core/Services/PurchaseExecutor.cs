@@ -150,9 +150,9 @@ public class PurchaseExecutor
 
                         // 4. Đợi server phản hồi và quét xem hộp thoại cảnh báo giá có xuất hiện không (trong 1000ms)
                         var modalDetected = false;
-                        for (var checkStep = 0; checkStep < 20; checkStep++)
+                        for (var checkStep = 0; checkStep < 15; checkStep++)
                         {
-                            yield return new WaitTime(50);
+                            yield return new WaitTime(60);
                             if (IsPriceDifferenceModalOpen(_gc))
                             {
                                 modalDetected = true;
@@ -169,7 +169,7 @@ public class PurchaseExecutor
                             
                             // Đợi hộp thoại đóng hoàn toàn
                             var waitCount = 0;
-                            while (IsPriceDifferenceModalOpen(_gc) && waitCount < 10)
+                            while (IsPriceDifferenceModalOpen(_gc) && waitCount < 8)
                             {
                                 yield return new WaitTime(50);
                                 waitCount++;
@@ -301,19 +301,11 @@ public class PurchaseExecutor
             var ingameState = gc.IngameState ?? gc.Game?.IngameState;
             if (ingameState == null) return false;
 
-            // 1. Quét IngameUi
+            // Quét nhanh IngameUi (depth <= 6) - Cực kỳ mượt và không gây tụt FPS
             var ingameUi = ingameState.IngameUi;
             if (ingameUi != null && ingameUi.IsValid)
             {
                 var d = FindPriceDifferenceDialogInMemory(ingameUi, 0);
-                if (d != null && d.IsValid) return true;
-            }
-
-            // 2. Quét UIRoot
-            var uiRoot = ingameState.UIRoot;
-            if (uiRoot != null && uiRoot.IsValid)
-            {
-                var d = FindPriceDifferenceDialogInMemory(uiRoot, 0);
                 if (d != null && d.IsValid) return true;
             }
         }
@@ -331,10 +323,6 @@ public class PurchaseExecutor
 
             var ingameState = gc.IngameState ?? gc.Game?.IngameState;
             var dialog = ingameState?.IngameUi != null ? FindPriceDifferenceDialogInMemory(ingameState.IngameUi, 0) : null;
-            if (dialog == null && ingameState?.UIRoot != null)
-            {
-                dialog = FindPriceDifferenceDialogInMemory(ingameState.UIRoot, 0);
-            }
 
             Vector2 targetPos;
 
@@ -395,13 +383,19 @@ public class PurchaseExecutor
 
     private static Element? FindOkButtonRecursive(Element? root, int depth)
     {
-        if (root == null || !root.IsValid || depth > 10) return null;
-        var txt = (root.Text ?? string.Empty).Trim();
-        var txtNoTags = (root.TextNoTags ?? string.Empty).Trim();
-        if (txt.Equals("OK", StringComparison.OrdinalIgnoreCase) || txtNoTags.Equals("OK", StringComparison.OrdinalIgnoreCase))
+        if (root == null || !root.IsValid || depth > 6) return null;
+        var txt = root.Text;
+        var txtNoTags = root.TextNoTags;
+
+        if (!string.IsNullOrEmpty(txt) && txt.Trim().Equals("OK", StringComparison.OrdinalIgnoreCase))
         {
             return root.Parent != null && root.Parent.GetClientRect().Width > root.GetClientRect().Width ? root.Parent : root;
         }
+        if (!string.IsNullOrEmpty(txtNoTags) && txtNoTags.Trim().Equals("OK", StringComparison.OrdinalIgnoreCase))
+        {
+            return root.Parent != null && root.Parent.GetClientRect().Width > root.GetClientRect().Width ? root.Parent : root;
+        }
+
         if (root.Children != null)
         {
             foreach (var child in root.Children)
@@ -415,16 +409,34 @@ public class PurchaseExecutor
 
     public static Element? FindPriceDifferenceDialogInMemory(Element? root, int depth)
     {
-        if (root == null || !root.IsValid || depth > 25) return null;
+        if (root == null || !root.IsValid || depth > 6) return null;
 
-        var txt = (root.Text ?? string.Empty).ToLowerInvariant();
-        var txtNoTags = (root.TextNoTags ?? string.Empty).ToLowerInvariant();
+        var txt = root.Text;
+        var txtNoTags = root.TextNoTags;
 
-        // Kiểm tra từ khóa hộp thoại cảnh báo giá
-        if (txt.Contains("price differs") || txt.Contains("differs from") || txt.Contains("this item's price") || txt.Contains("initially travelled") || txt.Contains("this shop for") || txt.Contains("different price") || txt.Contains("differs") ||
-            txtNoTags.Contains("price differs") || txtNoTags.Contains("differs from") || txtNoTags.Contains("this item's price") || txtNoTags.Contains("initially travelled") || txtNoTags.Contains("this shop for") || txtNoTags.Contains("different price") || txtNoTags.Contains("differs"))
+        // Kiểm tra nhanh không cấp phát chuỗi
+        if (!string.IsNullOrEmpty(txt))
         {
-            return root.Parent ?? root;
+            if (txt.Contains("price differs", StringComparison.OrdinalIgnoreCase) ||
+                txt.Contains("differs from", StringComparison.OrdinalIgnoreCase) ||
+                txt.Contains("this item's price", StringComparison.OrdinalIgnoreCase) ||
+                txt.Contains("initially travelled", StringComparison.OrdinalIgnoreCase) ||
+                txt.Contains("different price", StringComparison.OrdinalIgnoreCase))
+            {
+                return root.Parent ?? root;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(txtNoTags) && txtNoTags != txt)
+        {
+            if (txtNoTags.Contains("price differs", StringComparison.OrdinalIgnoreCase) ||
+                txtNoTags.Contains("differs from", StringComparison.OrdinalIgnoreCase) ||
+                txtNoTags.Contains("this item's price", StringComparison.OrdinalIgnoreCase) ||
+                txtNoTags.Contains("initially travelled", StringComparison.OrdinalIgnoreCase) ||
+                txtNoTags.Contains("different price", StringComparison.OrdinalIgnoreCase))
+            {
+                return root.Parent ?? root;
+            }
         }
 
         if (root.Children != null)
