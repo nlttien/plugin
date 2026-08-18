@@ -42,7 +42,7 @@ public class PurchaseExecutor
 
         IsRunning = true;
         RequestStop = false;
-        LogHelper.Info("=== Bắt đầu tiến trình tự động lướt quét tất cả ô đồ trong Shop ===");
+        LogHelper.Info("=== Bắt đầu tiến trình tự động quét & mua đồ trong Shop ===");
 
         var totalPurchasedCount = 0;
 
@@ -86,11 +86,13 @@ public class PurchaseExecutor
                     if (currentItems == null || currentItems.Count == 0) continue;
                 }
 
-                // LỌC CHÍNH XÁC: CHỈ LẤY CÁC MÓN TIMELESS JEWEL ĐỦ ĐIỀU KIỆN (KHÔNG LIA VÀO ĐỒ KHÁC)
-                List<ShopItemInfo> itemsToScan;
+                // ----------------------------------------------------
+                // BƯỚC 1: LỌC TẤT CẢ CÁC VIÊN TIMELESS JEWEL ĐẠT CHUẨN ĐỂ QUÉT GIÁ TRƯỚC
+                // ----------------------------------------------------
+                List<ShopItemInfo> candidateItems;
                 if (_settings.OnlyBuyTimelessJewels?.Value == true)
                 {
-                    itemsToScan = currentItems
+                    candidateItems = currentItems
                         .Where(i => i != null && i.IsTimelessJewel && ItemFilterEngine.MatchesTimelessCandidate(i, _settings))
                         .OrderBy(i => i.SlotY)
                         .ThenBy(i => i.SlotX)
@@ -99,46 +101,65 @@ public class PurchaseExecutor
                 else
                 {
                     var activeRules = _settings.GetActiveRules();
-                    itemsToScan = currentItems
+                    candidateItems = currentItems
                         .Where(i => i != null && ItemFilterEngine.MatchesAnyRule(i, activeRules))
                         .OrderBy(i => i.SlotY)
                         .ThenBy(i => i.SlotX)
                         .ToList();
                 }
 
-                if (itemsToScan.Count == 0) continue;
+                if (candidateItems.Count == 0) continue;
 
-                LogHelper.Info($"Tìm thấy {itemsToScan.Count} viên Timeless Jewel hợp điều kiện trong Tab {tabIndex + 1}. Bắt đầu lia chuột quét giá và mua...");
+                LogHelper.Info($"[BƯỚC 1: QUÉT GIÁ] Tìm thấy {candidateItems.Count} viên Timeless Jewel. Bắt đầu tự động lia chuột quét giá toàn bộ...");
 
-                foreach (var item in itemsToScan)
+                // QUÉT TOÀN BỘ CÁC VIÊN TIMELESS TRƯỚC
+                foreach (var item in candidateItems)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                    // 1. TỰ ĐỘNG DI CHUỘT LƯỚT QUA Ô NGỌC TIMELESS ĐỂ NẠP DỮ LIỆU TOOLTIP VÀ GIÁ
+                    // Lia chuột qua viên ngọc để nạp dữ liệu Tooltip vào RAM
                     MouseHelper.MoveMouseWithJitter(item.ScreenRect, 8f);
-                    yield return new WaitTime(MouseHelper.GetRandomDelay(60, 90));
+                    yield return new WaitTime(MouseHelper.GetRandomDelay(70, 95));
 
-                    // 2. Cập nhật dữ liệu giá, tên, tướng, seed từ Tooltip vừa hiển thị
+                    // Đọc và cập nhật trực tiếp dữ liệu giá và mod từ Tooltip
                     UpdateItemFromLiveHover(_gc, item);
+                    LogHelper.Debug($"[ĐÃ QUÉT] {item.DisplayName} - Giá: {item.CostString}");
+                }
 
-                    // 4. KIỂM TRA GIÁ: CHỈ MUA KHI GIÁ LÀ CHAOS (10 - 50c), TỪ CHỐI 100% MÓN GIÁ DIVINE ORB
-                    if (!ItemFilterEngine.MatchesTimelessSettings(item, _settings))
-                    {
-                        LogHelper.Warn($"[BỎ QUA] {item.DisplayName} vì giá không hợp lệ: {item.CostString}");
-                        continue; // Bỏ qua không bấm mua!
-                    }
+                // ----------------------------------------------------
+                // BƯỚC 2: TIẾN HÀNH MUA CÁC VIÊN ĐẠT CHUẨN GIÁ (10 - 50 CHAOS)
+                // ----------------------------------------------------
+                var validItemsToBuy = candidateItems
+                    .Where(i => ItemFilterEngine.MatchesTimelessSettings(i, _settings))
+                    .ToList();
 
-                    // 5. Kiểm tra ô trống hành trang trước khi mua
+                if (validItemsToBuy.Count == 0)
+                {
+                    LogHelper.Info($"[HOÀN TẤT QUÉT] Đã quét xong {candidateItems.Count} viên ngọc. Không có viên nào có giá Chaos hợp lệ (10-50c).");
+                    continue;
+                }
+
+                LogHelper.Info($"[BƯỚC 2: MUA ĐỒ] Tìm thấy {validItemsToBuy.Count} viên ngọc đạt chuẩn giá Chaos (10-50c). Bắt đầu mua...");
+
+                foreach (var item in validItemsToBuy)
+                {
+                    if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
+
+                    // 1. Kiểm tra ô trống hành trang trước khi mua
                     if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height))
                     {
                         LogHelper.Warn("Hành trang (Inventory) đã đầy! Dừng tự động mua.");
                         yield break;
                     }
 
-                    // 6. THỰC HIỆN BẤM MUA NGAY LẬP TỨC (Ctrl + Left Click)
+                    // 2. Di chuyển chuột tới vị trí ngọc cần mua
+                    MouseHelper.MoveMouseWithJitter(item.ScreenRect, 8f);
+                    yield return new WaitTime(MouseHelper.GetRandomDelay(60, 90));
+
+                    // 3. Thực hiện thao tác Ctrl + Left Click để mua
                     MouseHelper.CtrlLeftClick();
 
-                    // Đợi server phản hồi và quét chủ động xem hộp thoại cảnh báo giá có xuất hiện không (trong 450ms)
+                    // 4. Đợi server phản hồi và quét chủ động xem hộp thoại cảnh báo giá có xuất hiện không (trong 450ms)
                     var modalDetected = false;
                     for (var checkStep = 0; checkStep < 9; checkStep++)
                     {
@@ -150,7 +171,7 @@ public class PurchaseExecutor
                         }
                     }
 
-                    // 7. BẤM NÚT [ OK ] ĐÚNG 1 LẦN KHI CÓ HỘP THOẠI CẢNH BÁO GIÁ
+                    // 5. BẤM NÚT [ OK ] ĐÚNG 1 LẦN KHI CÓ HỘP THOẠI CẢNH BÁO GIÁ
                     if (modalDetected || IsPriceDifferenceModalOpen(_gc))
                     {
                         LogHelper.Info("Phát hiện hộp thoại cảnh báo giá! Bấm [ OK ] ngay...");
@@ -169,7 +190,7 @@ public class PurchaseExecutor
                     totalPurchasedCount++;
                     LogHelper.Info($"[ĐÃ MUA] {item.DisplayName} (Giá: {item.CostString})");
 
-                    // 8. Nghỉ ngơi giữa các lần mua
+                    // 6. Nghỉ ngơi giữa các lần mua
                     yield return new WaitTime(MouseHelper.GetRandomDelay(_settings.MinDelayMs.Value, _settings.MaxDelayMs.Value));
                 }
             }
@@ -234,6 +255,8 @@ public class PurchaseExecutor
                     cost.CurrencyName = "Chaos Orb";
                     var chaosMatch = Regex.Match(fullStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
                     if (!chaosMatch.Success) chaosMatch = Regex.Match(fullStr, @"Chaos\s*(?:Orb)?\s*x?\s*(\d+)", RegexOptions.IgnoreCase);
+                    if (!chaosMatch.Success) chaosMatch = Regex.Match(fullStr, @"Cost:\s*(\d+)", RegexOptions.IgnoreCase);
+                    
                     cost.Amount = (chaosMatch.Success && int.TryParse(chaosMatch.Groups[1].Value, out var chaosAmt)) ? chaosAmt : 1;
                     item.Cost = cost;
                     item.CostString = $"{cost.Amount} Chaos Orb";
