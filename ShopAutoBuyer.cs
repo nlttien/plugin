@@ -205,7 +205,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     {
                         _cachedAllItems = currentItems;
                         
-                        if (Settings.OnlyBuyTimelessJewels?.Value == true)
+                        if (Settings.IsTimelessMode())
                         {
                             _cachedMatchingItems = currentItems
                                 .Where(item => item != null && item.IsTimelessJewel && item.Width == 1 && item.Height == 1 && item.Sockets == 0 && !PurchaseExecutor.IsOccludedByLargerItem(item, currentItems) && ItemFilterEngine.MatchesTimelessCandidate(item, Settings))
@@ -248,7 +248,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                         var rect = item.ScreenRect;
                         if (rect.Width <= 0 || rect.Height <= 0) continue;
 
-                        var isConfirmedBuy = Settings.OnlyBuyTimelessJewels?.Value == true
+                        var isConfirmedBuy = Settings.IsTimelessMode()
                             ? ItemFilterEngine.MatchesTimelessSettings(item, Settings)
                             : ItemFilterEngine.MatchesGeneralSettings(item, Settings, Settings.GetActiveRules());
 
@@ -332,7 +332,10 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
         if (isShopOpen)
         {
-            var detectedText = $"Shop: MO | Hop le: {_cachedMatchingItems.Count} (Chaos 10-50c)";
+            var maxChaos = Settings?.MaxChaosPrice?.Value ?? 300;
+            var detectedText = (Settings?.IsTimelessMode() == true)
+                ? $"Shop: MO | Hop le: {_cachedMatchingItems.Count} (Timeless 10-50c)"
+                : $"Shop: MO | Hop le: {_cachedMatchingItems.Count} (Gia <= {maxChaos}c)";
             Graphics.DrawText(detectedText, new Vector2(boxX + 12, currentY), Color.LimeGreen);
             currentY += 20;
 

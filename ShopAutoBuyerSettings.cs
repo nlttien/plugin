@@ -28,11 +28,11 @@ public class ShopAutoBuyerSettings : ISettings
     // ==========================================
     // TOA DO NUT OK (1920x1080)
     // ==========================================
-    [Menu("Toa Do Nut OK - Truc X (Chuan 1080p: 750)")]
-    public RangeNode<int> OkButtonX { get; set; } = new RangeNode<int>(750, 100, 1920);
+    [Menu("Toa Do Nut OK - Truc X (Chuan 1080p: 763)")]
+    public RangeNode<int> OkButtonX { get; set; } = new RangeNode<int>(763, 100, 1920);
 
-    [Menu("Toa Do Nut OK - Truc Y (Chuan 1080p: 575)")]
-    public RangeNode<int> OkButtonY { get; set; } = new RangeNode<int>(575, 100, 1080);
+    [Menu("Toa Do Nut OK - Truc Y (Chuan 1080p: 570)")]
+    public RangeNode<int> OkButtonY { get; set; } = new RangeNode<int>(570, 100, 1080);
 
     // ==========================================
     // CAI DAT CHUNG
@@ -54,10 +54,16 @@ public class ShopAutoBuyerSettings : ISettings
     public ToggleNode ShowStatusBox { get; set; } = new ToggleNode(true);
 
     // ==========================================
+    // DANH SACH VAT PHAM CAN MUA (INVITATIONS, MAPS, ITEMS...)
+    // ==========================================
+    [Menu("Ten Vat Pham Can Mua (VD: Incandescent Invitation)")]
+    public TextNode BaseNamesFilter { get; set; } = new TextNode("Incandescent Invitation");
+
+    // ==========================================
     // TIMELESS JEWEL SPECIFIC SETTINGS
     // ==========================================
-    [Menu("Chi Mua Timeless Jewel (Chuan 5 Loai)")]
-    public ToggleNode OnlyBuyTimelessJewels { get; set; } = new ToggleNode(true);
+    [Menu("Che Do Chuyen Mua Timeless Jewel")]
+    public ToggleNode OnlyBuyTimelessJewels { get; set; } = new ToggleNode(false);
 
     [Menu("Mua Brutal Restraint")]
     public ToggleNode BuyBrutalRestraint { get; set; } = new ToggleNode(true);
@@ -75,13 +81,13 @@ public class ShopAutoBuyerSettings : ISettings
     public ToggleNode BuyElegantHubris { get; set; } = new ToggleNode(true);
 
     // ==========================================
-    // BO LOC GIA (PRICE FILTERS 10 - 50 CHAOS)
+    // BO LOC GIA (PRICE FILTERS)
     // ==========================================
-    [Menu("Loc Theo Gia Chaos Orb (10-50 Chaos)")]
+    [Menu("Loc Theo Gia Chaos Orb")]
     public ToggleNode BuyChaosPrice { get; set; } = new ToggleNode(true);
 
     [Menu("Gia Chaos Toi Thieu (Min Chaos)")]
-    public RangeNode<int> MinChaosPrice { get; set; } = new RangeNode<int>(10, 0, 500);
+    public RangeNode<int> MinChaosPrice { get; set; } = new RangeNode<int>(1, 0, 500);
 
     [Menu("Gia Chaos Toi Da (Max Chaos)")]
     public RangeNode<int> MaxChaosPrice { get; set; } = new RangeNode<int>(300, 0, 5000);
@@ -108,14 +114,14 @@ public class ShopAutoBuyerSettings : ISettings
     public ListNode LabelMode { get; set; } = new ListNode
     {
         Values = new List<string> { "Compact (Seed Only)", "Full Name", "Border Only" },
-        Value = "Compact (Seed Only)"
+        Value = "Full Name"
     };
 
     [Menu("Mau Khung Highlight")]
     public ColorNode HighlightColor { get; set; } = new ColorNode(Color.LimeGreen);
 
     [Menu("Do Day Vien Khung")]
-    public RangeNode<int> BorderThickness { get; set; } = new RangeNode<int>(2, 1, 8);
+    public RangeNode<int> BorderThickness { get; set; } = new RangeNode<int>(3, 1, 8);
 
     [Menu("Do Tre Toi Thieu (Min Delay Ms)")]
     public RangeNode<int> MinDelayMs { get; set; } = new RangeNode<int>(100, 30, 1000);
@@ -124,10 +130,8 @@ public class ShopAutoBuyerSettings : ISettings
     public RangeNode<int> MaxDelayMs { get; set; } = new RangeNode<int>(220, 50, 2000);
 
     // ==========================================
-    // GENERAL WHITELIST (Khi tat OnlyBuyTimelessJewels)
+    // GENERAL WHITELIST ATTRIBUTES
     // ==========================================
-    [Menu("Danh Sach Ten Item Can Mua (De trong = Mua moi item)")]
-    public TextNode BaseNamesFilter { get; set; } = new TextNode("");
     public ToggleNode BuyNormal { get; set; } = new ToggleNode(true);
     public ToggleNode BuyMagic { get; set; } = new ToggleNode(true);
     public ToggleNode BuyRare { get; set; } = new ToggleNode(true);
@@ -138,11 +142,19 @@ public class ShopAutoBuyerSettings : ISettings
     public RangeNode<int> MinLinks { get; set; } = new RangeNode<int>(0, 0, 6);
     public ToggleNode BuyRgbChromatic { get; set; } = new ToggleNode(false);
 
+    public bool IsTimelessMode()
+    {
+        // Chỉ chạy chế độ Timeless Jewel nếu BẬT OnlyBuyTimelessJewels VÀ KHÔNG điền tên item cụ thể trong BaseNamesFilter
+        var customFilter = BaseNamesFilter?.Value?.Trim();
+        return OnlyBuyTimelessJewels?.Value == true && string.IsNullOrEmpty(customFilter);
+    }
+
     public List<FilterRule> GetActiveRules()
     {
         var rules = new List<FilterRule>();
+        var baseFilter = BaseNamesFilter?.Value?.Trim() ?? string.Empty;
 
-        if (OnlyBuyTimelessJewels?.Value == true)
+        if (IsTimelessMode())
         {
             rules.Add(new FilterRule
             {
@@ -157,11 +169,10 @@ public class ShopAutoBuyerSettings : ISettings
             return rules;
         }
 
-        var baseFilter = BaseNamesFilter?.Value ?? string.Empty;
         rules.Add(new FilterRule
         {
             Enabled = true,
-            Name = "User Filter",
+            Name = "Custom Item Filter",
             BaseNameFilter = baseFilter,
             MatchNormal = BuyNormal?.Value ?? true,
             MatchMagic = BuyMagic?.Value ?? true,

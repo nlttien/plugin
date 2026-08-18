@@ -82,7 +82,7 @@ public class PurchaseExecutor
             // BƯỚC 1: LỌC TẤT CẢ CÁC VẬT PHẨM ĐẠT CHUẨN ĐỂ QUÉT GIÁ TRƯỚC
             // ----------------------------------------------------
             List<ShopItemInfo> candidateItems;
-            if (_settings.OnlyBuyTimelessJewels?.Value == true)
+            if (_settings.IsTimelessMode())
             {
                 candidateItems = currentItems
                     .Where(i => i != null && i.IsTimelessJewel && i.Width == 1 && i.Height == 1 && i.Sockets == 0 && !IsOccludedByLargerItem(i, currentItems) && ItemFilterEngine.MatchesTimelessCandidate(i, _settings))
@@ -122,7 +122,7 @@ public class PurchaseExecutor
                 // BƯỚC 2: TIẾN HÀNH MUA CÁC VẬT PHẨM ĐẠT CHUẨN GIÁ
                 // ----------------------------------------------------
                 List<ShopItemInfo> validItemsToBuy;
-                if (_settings.OnlyBuyTimelessJewels?.Value == true)
+                if (_settings.IsTimelessMode())
                 {
                     validItemsToBuy = candidateItems
                         .Where(i => ItemFilterEngine.MatchesTimelessSettings(i, _settings))
@@ -149,7 +149,7 @@ public class PurchaseExecutor
                         if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
                         // 1. Kiểm tra an toàn (nếu ở chế độ ngọc): Nếu bị áo giáp lớn đè -> BỎ QUA NGAY
-                        if (_settings.OnlyBuyTimelessJewels?.Value == true && IsOccludedByLargerItem(item, currentItems))
+                        if (_settings.IsTimelessMode() && IsOccludedByLargerItem(item, currentItems))
                         {
                             LogHelper.Warn($"[BỎ QUA AN TOÀN] Ô {item.DisplayName} bị áo giáp/trang bị đè lên! Bỏ qua để không mua nhầm.");
                             continue;
@@ -170,7 +170,7 @@ public class PurchaseExecutor
                         yield return new WaitTime(100);
 
                         // 5. KIỂM TRA TRỰC TIẾP DƯỚI CON TRỎ CHUỘT (CHỈ kích hoạt khi mua ngọc Timeless)
-                        if (_settings.OnlyBuyTimelessJewels?.Value == true && IsHoveringNonJewelEquipment(_gc))
+                        if (_settings.IsTimelessMode() && IsHoveringNonJewelEquipment(_gc))
                         {
                             LogHelper.Warn($"[HỦY CLICK AN TOÀN] Con trỏ chuột đang trỏ vào Áo giáp/Trang bị có socket! Hủy click ngay lập tức.");
                             continue;
