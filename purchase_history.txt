@@ -1,1 +1,5 @@
-# Log l?ch s? mua h�ng t? d?ng c?a ShopAutoBuyer
+﻿# Log lich su mua hang tu dong cua ShopAutoBuyer
+[2026-08-18 12:56:15] [ĐÃ MUA] Incandescent Invitation | Giá:  
+[2026-08-18 12:56:28] [ĐÃ MUA] Incandescent Invitation | Giá:  
+[2026-08-18 12:56:35] [ĐÃ MUA] Incandescent Invitation | Giá:  
+[2026-08-18 12:56:39] [ĐÃ MUA] Incandescent Invitation | Giá:  

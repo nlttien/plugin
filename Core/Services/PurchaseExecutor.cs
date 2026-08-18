@@ -171,7 +171,10 @@ public class PurchaseExecutor
 
                         // 4. Lia chuột tới vị trí mua và kiểm tra trước khi bấm
                         MouseHelper.MoveMouse(clickTarget);
-                        yield return new WaitTime(100);
+                        yield return new WaitTime(120);
+
+                        // Đọc lại giá và dữ liệu từ Tooltip trực tiếp ngay khi đang hover chuột
+                        UpdateItemFromLiveHover(_gc, item);
 
                         // 5. KIỂM TRA TRỰC TIẾP DƯỚI CON TRỎ CHUỘT (CHỈ kích hoạt khi mua ngọc Timeless)
                         if (_settings.IsTimelessMode() && IsHoveringNonJewelEquipment(_gc))
@@ -216,7 +219,9 @@ public class PurchaseExecutor
                         // Tạo chuỗi thông tin giá chi tiết
                         var priceText = !string.IsNullOrWhiteSpace(item.CostString) 
                             ? item.CostString 
-                            : $"{item.Cost?.Amount} {item.Cost?.CurrencyName}";
+                            : ((item.Cost != null && item.Cost.Amount > 0) 
+                                ? $"{item.Cost.Amount} {item.Cost.CurrencyName}" 
+                                : (_settings.BuyChaosPrice?.Value == true ? $"{_settings.MaxChaosPrice?.Value} Chaos Orb (Max)" : "Đã mua"));
                         var goldText = item.Cost?.GoldAmount > 0 ? $" ({item.Cost.GoldAmount} Gold)" : "";
                         var fullBuyLog = $"{item.DisplayName} | Giá: {priceText}{goldText}";
 
@@ -334,33 +339,19 @@ public class PurchaseExecutor
             {
                 Poe1ShopAdapter.ExtractCostTextRecursive(ingameState.UIHoverElement, texts, 0);
             }
+            if (item.InventoryItem != null && item.InventoryItem.IsValid)
+            {
+                if (item.InventoryItem.Tooltip != null && item.InventoryItem.Tooltip.IsValid)
+                {
+                    Poe1ShopAdapter.ExtractCostTextRecursive(item.InventoryItem.Tooltip, texts, 0);
+                }
+            }
 
             if (texts.Count > 0)
             {
-                var fullStr = string.Join(" ", texts);
+                Poe1ShopAdapter.ParseCostFromTexts(texts, item);
 
-                // 1. Cập nhật Cost
-                var cost = new CurrencyCost();
-                if (fullStr.Contains("Divine", StringComparison.OrdinalIgnoreCase))
-                {
-                    cost.CurrencyName = "Divine Orb";
-                    var divMatch = Regex.Match(fullStr, @"(\d+)\s*x?\s*Divine", RegexOptions.IgnoreCase);
-                    if (!divMatch.Success) divMatch = Regex.Match(fullStr, @"Divine\s*(?:Orb)?\s*x?\s*(\d+)", RegexOptions.IgnoreCase);
-                    cost.Amount = (divMatch.Success && int.TryParse(divMatch.Groups[1].Value, out var divAmt)) ? divAmt : 1;
-                    item.Cost = cost;
-                    item.CostString = $"{cost.Amount} Divine Orb";
-                }
-                else if (fullStr.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
-                {
-                    cost.CurrencyName = "Chaos Orb";
-                    var chaosMatch = Regex.Match(fullStr, @"(\d+)\s*x?\s*Chaos", RegexOptions.IgnoreCase);
-                    if (!chaosMatch.Success) chaosMatch = Regex.Match(fullStr, @"Chaos\s*(?:Orb)?\s*x?\s*(\d+)", RegexOptions.IgnoreCase);
-                    if (!chaosMatch.Success) chaosMatch = Regex.Match(fullStr, @"Cost:\s*(\d+)", RegexOptions.IgnoreCase);
-                    
-                    cost.Amount = (chaosMatch.Success && int.TryParse(chaosMatch.Groups[1].Value, out var chaosAmt)) ? chaosAmt : 1;
-                    item.Cost = cost;
-                    item.CostString = $"{cost.Amount} Chaos Orb";
-                }
+                var fullStr = string.Join(" ", texts);
 
                 // 2. Cập nhật Gold nếu có
                 var goldMatch = Regex.Match(fullStr, @"([\d,]+)\s*Gold", RegexOptions.IgnoreCase);
