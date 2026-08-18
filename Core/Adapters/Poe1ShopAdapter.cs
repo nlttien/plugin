@@ -90,8 +90,6 @@ public class Poe1ShopAdapter : IShopAdapter
                     ScreenRect = clientRect,
                     ClickPosition = new Vector2(clientRect.Center.X, clientRect.Center.Y),
                     TabIndex = currentTabIndex,
-                    SlotX = invItem.InventPosX,
-                    SlotY = invItem.InventPosY,
                     Width = Math.Max(1, invItem.ItemWidth),
                     Height = Math.Max(1, invItem.ItemHeight)
                 };
@@ -139,8 +137,8 @@ public class Poe1ShopAdapter : IShopAdapter
                         itemInfo.Quality = qualityComp.ItemQuality;
                     }
 
-                    // Check if price was already scanned in RAM
-                    if (PurchaseExecutor.ScannedPriceCache.TryGetValue((itemInfo.SlotX, itemInfo.SlotY), out var cachedCost))
+                    // LẤY GIÁ TỪ RAM QUA ĐỊA CHỈ CON TRỎ BỘ NHỚ DUY NHẤT (Address) - TUYỆT ĐỐI KHÔNG BỊ TRÙNG LẶP
+                    if (PurchaseExecutor.ScannedPriceCache.TryGetValue(invItem.Address, out var cachedCost))
                     {
                         itemInfo.Cost = cachedCost;
                         itemInfo.CostString = $"{cachedCost.Amount} {cachedCost.CurrencyName}";
@@ -167,8 +165,15 @@ public class Poe1ShopAdapter : IShopAdapter
     {
         if (itemInfo == null || modsComp == null) return;
 
-        // 1. KÍCH THƯỚC BẮT BUỘC PHẢI LÀ 1x1 (JEWEL) VÀ TUYỆT ĐỐI KHÔNG CÓ SOCKETS
-        if (itemInfo.Width != 1 || itemInfo.Height != 1 || itemInfo.Sockets > 0 || itemInfo.Links > 0)
+        // 1. KÍCH THƯỚC Ô TRÊN MÀN HÌNH: NGỌC 1x1 CÓ KÍCH THƯỚC ~47x47px. ÁO GIÁP 2x3 CÓ KÍCH THƯỚC > 80px -> LOẠI NGAY!
+        if (itemInfo.ScreenRect.Width > 68 || itemInfo.ScreenRect.Height > 68)
+        {
+            itemInfo.IsTimelessJewel = false;
+            return;
+        }
+
+        // 2. NGỌC TIMELESS KHÔNG BAO GIỜ CÓ SOCKETS HOẶC LINKS
+        if (itemInfo.Sockets > 0 || itemInfo.Links > 0)
         {
             itemInfo.IsTimelessJewel = false;
             return;
@@ -178,14 +183,14 @@ public class Poe1ShopAdapter : IShopAdapter
         var baseName = itemInfo.BaseName ?? string.Empty;
         var path = itemInfo.ItemPath ?? string.Empty;
 
-        // 2. Phải là Unique Rarity
+        // 3. Phải là Unique Rarity
         if (itemInfo.Rarity != ItemRarity.Unique)
         {
             itemInfo.IsTimelessJewel = false;
             return;
         }
 
-        // 3. LOẠI TRỪ 100% CÁC TRANG BỊ KHÔNG PHẢI JEWEL (Amulet, Ring, Belt, Armour, Weapon, Flask, v.v.)
+        // 4. LOẠI TRỪ 100% CÁC TRANG BỊ KHÔNG PHẢI JEWEL (Áo giáp, Vũ khí, Nhẫn, Dây chuyền, v.v.)
         if (path.Contains("Armour", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("BodyArmour", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("Weapon", StringComparison.OrdinalIgnoreCase) ||
@@ -208,7 +213,7 @@ public class Poe1ShopAdapter : IShopAdapter
             return;
         }
 
-        // 4. STRICT MATCH: Bắt buộc phải là 1 trong 5 loại Timeless Jewel chuẩn
+        // 5. STRICT MATCH: Bắt buộc phải là 1 trong 5 loại Timeless Jewel chuẩn
         var isExactName = name.Equals("Brutal Restraint", StringComparison.OrdinalIgnoreCase) ||
                           name.Equals("Glorious Vanity", StringComparison.OrdinalIgnoreCase) ||
                           name.Equals("Lethal Pride", StringComparison.OrdinalIgnoreCase) ||
@@ -255,7 +260,7 @@ public class Poe1ShopAdapter : IShopAdapter
 
         itemInfo.ExplicitMods = statsList;
 
-        // 5. Kiểm tra Historic mod / Seed
+        // 6. Kiểm tra Historic mod / Seed
         foreach (var stat in statsList)
         {
             if (string.IsNullOrWhiteSpace(stat)) continue;

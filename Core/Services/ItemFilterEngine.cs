@@ -15,7 +15,7 @@ public static class ItemFilterEngine
     public static bool MatchesTimelessCandidate(ShopItemInfo item, ShopAutoBuyerSettings settings)
     {
         if (item == null || settings == null) return false;
-        if (!item.IsTimelessJewel) return false;
+        if (!item.IsTimelessJewel || item.ScreenRect.Width > 68 || item.ScreenRect.Height > 68 || item.Sockets > 0) return false;
 
         var name = item.Name ?? string.Empty;
 
@@ -74,7 +74,7 @@ public static class ItemFilterEngine
     public static bool MatchesTimelessSettings(ShopItemInfo item, ShopAutoBuyerSettings settings)
     {
         if (item == null || settings == null) return false;
-        if (!item.IsTimelessJewel) return false;
+        if (!item.IsTimelessJewel || item.ScreenRect.Width > 68 || item.ScreenRect.Height > 68 || item.Sockets > 0) return false;
 
         var name = item.Name ?? string.Empty;
 

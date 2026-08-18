@@ -22,7 +22,8 @@ public class PurchaseExecutor
     private readonly ShopAutoBuyerSettings _settings;
     private readonly ShopAdapterFactory _adapterFactory;
 
-    public static readonly Dictionary<(int x, int y), CurrencyCost> ScannedPriceCache = new();
+    // Bộ nhớ cache lưu giá theo con trỏ bộ nhớ Address duy nhất của từng ô UI đồ trong game
+    public static readonly Dictionary<long, CurrencyCost> ScannedPriceCache = new();
 
     public bool IsRunning { get; set; }
     public bool RequestStop { get; set; }
@@ -77,14 +78,15 @@ public class PurchaseExecutor
 
             // ----------------------------------------------------
             // BƯỚC 1: LỌC TẤT CẢ CÁC VIÊN TIMELESS JEWEL ĐẠT CHUẨN ĐỂ QUÉT GIÁ TRƯỚC
+            // SẮP XẾP CHUẨN XÁC THEO TỌA ĐỘ MÀN HÌNH TỪ TRÊN XUỐNG DƯỚI, TỪ TRÁI QUA PHẢI
             // ----------------------------------------------------
             List<ShopItemInfo> candidateItems;
             if (_settings.OnlyBuyTimelessJewels?.Value == true)
             {
                 candidateItems = currentItems
-                    .Where(i => i != null && i.IsTimelessJewel && i.Width == 1 && i.Height == 1 && i.Sockets == 0 && ItemFilterEngine.MatchesTimelessCandidate(i, _settings))
-                    .OrderBy(i => i.SlotY)
-                    .ThenBy(i => i.SlotX)
+                    .Where(i => i != null && i.IsTimelessJewel && i.ScreenRect.Width <= 68 && i.ScreenRect.Height <= 68 && i.Sockets == 0 && ItemFilterEngine.MatchesTimelessCandidate(i, _settings))
+                    .OrderBy(i => i.ScreenRect.Top)
+                    .ThenBy(i => i.ScreenRect.Left)
                     .ToList();
             }
             else
@@ -92,8 +94,8 @@ public class PurchaseExecutor
                 var activeRules = _settings.GetActiveRules();
                 candidateItems = currentItems
                     .Where(i => i != null && ItemFilterEngine.MatchesAnyRule(i, activeRules))
-                    .OrderBy(i => i.SlotY)
-                    .ThenBy(i => i.SlotX)
+                    .OrderBy(i => i.ScreenRect.Top)
+                    .ThenBy(i => i.ScreenRect.Left)
                     .ToList();
             }
 
@@ -281,9 +283,10 @@ public class PurchaseExecutor
                     }
                 }
 
-                if (item.Cost != null)
+                // Lưu giá vào cache theo địa chỉ Address duy nhất trong RAM
+                if (item.InventoryItem != null && item.Cost != null)
                 {
-                    ScannedPriceCache[(item.SlotX, item.SlotY)] = item.Cost;
+                    ScannedPriceCache[item.InventoryItem.Address] = item.Cost;
                 }
             }
         }
