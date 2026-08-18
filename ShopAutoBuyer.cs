@@ -208,7 +208,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                         if (Settings.OnlyBuyTimelessJewels?.Value == true)
                         {
                             _cachedMatchingItems = currentItems
-                                .Where(item => item != null && item.IsTimelessJewel && item.Width == 1 && item.Height == 1 && item.Sockets == 0 && ItemFilterEngine.MatchesTimelessCandidate(item, Settings))
+                                .Where(item => item != null && item.IsTimelessJewel && item.Width == 1 && item.Height == 1 && item.Sockets == 0 && !PurchaseExecutor.IsOccludedByLargerItem(item, currentItems) && ItemFilterEngine.MatchesTimelessCandidate(item, Settings))
                                 .ToList();
                         }
                         else

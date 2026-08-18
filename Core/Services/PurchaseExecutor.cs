@@ -8,6 +8,8 @@ using System.Threading;
 using System.Windows.Forms;
 using ExileCore;
 using ExileCore.PoEMemory;
+using ExileCore.PoEMemory.Components;
+using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.Shared;
 using ShopAutoBuyer.Core.Adapters;
 using ShopAutoBuyer.Core.Models;
@@ -78,13 +80,13 @@ public class PurchaseExecutor
 
             // ----------------------------------------------------
             // BƯỚC 1: LỌC TẤT CẢ CÁC VIÊN TIMELESS JEWEL ĐẠT CHUẨN ĐỂ QUÉT GIÁ TRƯỚC
-            // SẮP XẾP CHUẨN XÁC THEO TỌA ĐỘ MÀN HÌNH TỪ TRÊN XUỐNG DƯỚI, TỪ TRÁI QUA PHẢI
+            // LOẠI TRỪ TOÀN BỘ CÁC Ô BỊ ÁO GIÁP / TRANG BỊ LỚN ĐÈ LÊN VỊ TRÍ
             // ----------------------------------------------------
             List<ShopItemInfo> candidateItems;
             if (_settings.OnlyBuyTimelessJewels?.Value == true)
             {
                 candidateItems = currentItems
-                    .Where(i => i != null && i.IsTimelessJewel && i.Width == 1 && i.Height == 1 && i.Sockets == 0 && ItemFilterEngine.MatchesTimelessCandidate(i, _settings))
+                    .Where(i => i != null && i.IsTimelessJewel && i.Width == 1 && i.Height == 1 && i.Sockets == 0 && !IsOccludedByLargerItem(i, currentItems) && ItemFilterEngine.MatchesTimelessCandidate(i, _settings))
                     .OrderBy(i => i.ScreenRect.Top)
                     .ThenBy(i => i.ScreenRect.Left)
                     .ToList();
@@ -135,20 +137,38 @@ public class PurchaseExecutor
                     {
                         if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                        // 1. Kiểm tra ô trống hành trang trước khi mua
+                        // 1. Kiểm tra an toàn: Nếu bị áo giáp đè -> BỎ QUA NGAY
+                        if (IsOccludedByLargerItem(item, currentItems))
+                        {
+                            LogHelper.Warn($"[BỎ QUA AN TOÀN] Ô ngọc {item.DisplayName} bị áo giáp/trang bị đè lên! Bỏ qua để không mua nhầm.");
+                            continue;
+                        }
+
+                        // 2. Kiểm tra ô trống hành trang trước khi mua
                         if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height))
                         {
                             LogHelper.Warn("Hành trang (Inventory) đã đầy! Dừng tự động mua.");
                             yield break;
                         }
 
-                        // 2. Tọa độ tâm chính xác của ô đồ (+6px vào giữa icon)
+                        // 3. Tọa độ tâm chính xác của ô đồ (+6px vào giữa icon)
                         var clickTarget = new Vector2(item.ScreenRect.Center.X, item.ScreenRect.Center.Y + 6);
 
-                        // 3. Thực hiện Ctrl + Click chuẩn xác 100% (chờ 130ms để game nhận hover, giữ click 50ms)
-                        MouseHelper.CtrlLeftClickAt(clickTarget, 130, 50);
+                        // 4. Lia chuột tới vị trí mua và kiểm tra trước khi bấm
+                        MouseHelper.MoveMouseWithJitter(clickTarget, 4f);
+                        yield return new WaitTime(100);
 
-                        // 4. Đợi server phản hồi và quét xem hộp thoại cảnh báo giá có xuất hiện không (trong 1000ms)
+                        // 5. KIỂM TRA TRỰC TIẾP DƯỚI CON TRỎ CHUỘT (Live Hover Protection): Tuyệt đối không click nếu là Áo giáp/Vũ khí
+                        if (IsHoveringNonJewelEquipment(_gc))
+                        {
+                            LogHelper.Warn($"[HỦY CLICK AN TOÀN] Con trỏ chuột đang trỏ vào Áo giáp/Trang bị có socket! Hủy click ngay lập tức.");
+                            continue;
+                        }
+
+                        // 6. Thực hiện Ctrl + Click chuẩn xác 100%
+                        MouseHelper.CtrlLeftClickAt(clickTarget, 30, 50);
+
+                        // 7. Đợi server phản hồi và quét xem hộp thoại cảnh báo giá có xuất hiện không (trong 1000ms)
                         var modalDetected = false;
                         for (var checkStep = 0; checkStep < 15; checkStep++)
                         {
@@ -160,7 +180,7 @@ public class PurchaseExecutor
                             }
                         }
 
-                        // 5. BẤM NÚT [ OK ] ĐÚNG 1 LẦN KHI CÓ HỘP THOẠI CẢNH BÁO GIÁ
+                        // 8. BẤM NÚT [ OK ] ĐÚNG 1 LẦN KHI CÓ HỘP THOẠI CẢNH BÁO GIÁ
                         if (modalDetected || IsPriceDifferenceModalOpen(_gc))
                         {
                             LogHelper.Info("Phát hiện hộp thoại cảnh báo giá! Bấm [ OK ] ngay...");
@@ -179,7 +199,7 @@ public class PurchaseExecutor
                         totalPurchasedCount++;
                         LogHelper.Info($"[ĐÃ MUA] {item.DisplayName} (Giá: {item.CostString})");
 
-                        // 6. Nghỉ ngơi giữa các lần mua
+                        // 9. Nghỉ ngơi giữa các lần mua
                         yield return new WaitTime(MouseHelper.GetRandomDelay(_settings.MinDelayMs.Value, _settings.MaxDelayMs.Value));
                     }
                 }
@@ -200,6 +220,72 @@ public class PurchaseExecutor
             }
             catch { }
         }
+    }
+
+    public static bool IsOccludedByLargerItem(ShopItemInfo item, IEnumerable<ShopItemInfo>? allItems)
+    {
+        if (item == null || allItems == null) return false;
+        var center = item.ClickPosition;
+
+        foreach (var other in allItems)
+        {
+            if (other == null || other == item) continue;
+
+            // Nếu là trang bị lớn (Áo giáp, Vũ khí, v.v. có Width > 1 hoặc Height > 1 hoặc Sockets > 0 hoặc không phải Timeless)
+            if (other.Width > 1 || other.Height > 1 || other.Sockets > 0 || !other.IsTimelessJewel)
+            {
+                var rect = other.ScreenRect;
+                if (rect.Width > 0 && rect.Height > 0)
+                {
+                    // Nếu tâm của viên ngọc nằm gọn bên trong khung hình của trang bị lớn -> ĐANG BỊ ĐÈ!
+                    if (center.X >= rect.Left + 4 && center.X <= rect.Right - 4 &&
+                        center.Y >= rect.Top + 4 && center.Y <= rect.Bottom - 4)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    public static bool IsHoveringNonJewelEquipment(GameController gc)
+    {
+        try
+        {
+            if (gc == null) return false;
+            var ingameState = gc.IngameState ?? gc.Game?.IngameState;
+            if (ingameState == null) return false;
+
+            var hoveredElement = ingameState.UIHover ?? ingameState.UIHoverElement;
+            if (hoveredElement != null && hoveredElement.IsValid)
+            {
+                if (hoveredElement is NormalInventoryItem invItem && invItem.Item != null && invItem.Item.IsValid)
+                {
+                    var item = invItem.Item;
+                    var path = item.Path ?? string.Empty;
+                    var socketsComp = item.GetComponent<Sockets>();
+                    if (socketsComp != null && (socketsComp.NumberOfSockets > 0 || socketsComp.LargestLinkSize > 0))
+                    {
+                        return true; // Có socket -> 100% là áo/vũ khí/găng/mũ/giày!
+                    }
+
+                    if (path.Contains("Armour", StringComparison.OrdinalIgnoreCase) ||
+                        path.Contains("BodyArmour", StringComparison.OrdinalIgnoreCase) ||
+                        path.Contains("Weapon", StringComparison.OrdinalIgnoreCase) ||
+                        path.Contains("Flask", StringComparison.OrdinalIgnoreCase) ||
+                        path.Contains("Amulet", StringComparison.OrdinalIgnoreCase) ||
+                        path.Contains("Ring", StringComparison.OrdinalIgnoreCase) ||
+                        path.Contains("Belt", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        catch { }
+
+        return false;
     }
 
     public static void UpdateItemFromLiveHover(GameController gc, ShopItemInfo item)
