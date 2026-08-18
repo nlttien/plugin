@@ -23,6 +23,7 @@ public class PurchaseExecutor
     private readonly GameController _gc;
     private readonly ShopAutoBuyerSettings _settings;
     private readonly ShopAdapterFactory _adapterFactory;
+    private readonly StashDepositService? _stashDepositService;
 
     // Bộ nhớ cache lưu giá theo con trỏ bộ nhớ Address duy nhất của từng ô UI đồ trong game
     public static readonly Dictionary<long, CurrencyCost> ScannedPriceCache = new();
@@ -33,11 +34,12 @@ public class PurchaseExecutor
     public bool IsRunning { get; set; }
     public bool RequestStop { get; set; }
 
-    public PurchaseExecutor(GameController gc, ShopAutoBuyerSettings settings, ShopAdapterFactory adapterFactory)
+    public PurchaseExecutor(GameController gc, ShopAutoBuyerSettings settings, ShopAdapterFactory adapterFactory, StashDepositService? stashDepositService = null)
     {
         _gc = gc;
         _settings = settings;
         _adapterFactory = adapterFactory;
+        _stashDepositService = stashDepositService ?? new StashDepositService(gc, settings);
     }
 
     public IEnumerator ExecutePurchaseCoroutine()
@@ -162,7 +164,16 @@ public class PurchaseExecutor
                         // 2. Kiểm tra ô trống hành trang trước khi mua
                         if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height))
                         {
-                            LogHelper.Warn("Hành trang (Inventory) đã đầy! Dừng tự động mua.");
+                            LogHelper.Warn("Hành trang (Inventory) đã đầy! Kích hoạt tự động về Hideout cất đồ vào Rương...");
+                            if (_settings?.AutoDepositWhenFull?.Value == true && _stashDepositService != null)
+                            {
+                                var depositRoutine = new Coroutine(
+                                    _stashDepositService.ExecuteDepositCoroutine(),
+                                    null,
+                                    "ShopAutoBuyer_DepositRoutine"
+                                );
+                                ExileCore.Core.ParallelRunner.Run(depositRoutine);
+                            }
                             yield break;
                         }
 

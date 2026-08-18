@@ -35,6 +35,38 @@ public class ShopAutoBuyerSettings : ISettings
     public RangeNode<int> OkButtonY { get; set; } = new RangeNode<int>(570, 100, 1080);
 
     // ==========================================
+    // TU DONG VE HIDEOUT & CAT DO VAO RUONG (STASH DEPOSIT)
+    // ==========================================
+    [Menu("Tu Dong Ve Cat Do Khi Day Hanh Trang")]
+    public ToggleNode AutoDepositWhenFull { get; set; } = new ToggleNode(true);
+
+    [Menu("Phim Tat Ve Hideout (Mac dinh F2)")]
+    public HotkeyNode HomeHotkey { get; set; } = new HotkeyNode(Keys.F2);
+
+    [Menu("Loai Ruong Muon Cat Do")]
+    public ListNode StashType { get; set; } = new ListNode
+    {
+        Values = new List<string> { "Ruong Thuong (Personal Stash)", "Ruong Guild (Guild Stash)" },
+        Value = "Ruong Thuong (Personal Stash)"
+    };
+
+    [Menu("Che Do Cat Do")]
+    public ListNode DepositMode { get; set; } = new ListNode
+    {
+        Values = new List<string> { "Nut Cat Nhanh Affinity (Anh 2)", "Ctrl+Click Vao Tab Con Trong", "Ket Hop Ca Hai" },
+        Value = "Ket Hop Ca Hai"
+    };
+
+    [Menu("Nguong O Trong Toi Thieu (Con duoi X o thi ve cat do)")]
+    public RangeNode<int> MinFreeSlotsThreshold { get; set; } = new RangeNode<int>(2, 1, 10);
+
+    [Menu("Toa Do Nut Cat Nhanh - Truc X (Chuan 1080p: 630)")]
+    public RangeNode<int> DepositButtonX { get; set; } = new RangeNode<int>(630, 100, 1920);
+
+    [Menu("Toa Do Nut Cat Nhanh - Truc Y (Chuan 1080p: 615)")]
+    public RangeNode<int> DepositButtonY { get; set; } = new RangeNode<int>(615, 100, 1080);
+
+    // ==========================================
     // CAI DAT CHUNG
     // ==========================================
     [Menu("Phien Ban Game (Game Version)")]

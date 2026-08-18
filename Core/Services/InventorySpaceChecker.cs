@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using ExileCore;
 using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.Elements.InventoryElements;
@@ -21,7 +23,6 @@ public static class InventorySpaceChecker
             var invPanel = ingameUi.InventoryPanel;
             if (invPanel == null || !invPanel.IsValid || !invPanel.IsVisible)
             {
-                // If inventory UI is not directly open, still attempt to check server inventory or allow purchase
                 return true;
             }
 
@@ -86,6 +87,60 @@ public static class InventorySpaceChecker
         {
             LogHelper.Debug($"InventorySpaceChecker error: {ex.Message}");
             return true;
+        }
+    }
+
+    public static int GetFreeSlotsCount(GameController gc)
+    {
+        try
+        {
+            var ingameUi = gc?.Game?.IngameState?.IngameUi;
+            if (ingameUi == null) return 60;
+
+            var invPanel = ingameUi.InventoryPanel;
+            if (invPanel == null || !invPanel.IsValid) return 60;
+
+            var invElement = invPanel[ExileCore.Shared.Enums.InventoryIndex.PlayerInventory];
+            if (invElement == null || !invElement.IsValid) return 60;
+
+            var items = invElement.VisibleInventoryItems;
+            if (items == null) return 60;
+
+            var occupied = 0;
+            foreach (var invItem in items)
+            {
+                if (invItem != null && invItem.IsValid)
+                {
+                    occupied += Math.Max(1, invItem.ItemWidth) * Math.Max(1, invItem.ItemHeight);
+                }
+            }
+
+            return Math.Max(0, (InvColumns * InvRows) - occupied);
+        }
+        catch
+        {
+            return 60;
+        }
+    }
+
+    public static IList<NormalInventoryItem> GetPlayerInventoryItems(GameController gc)
+    {
+        try
+        {
+            var ingameUi = gc?.Game?.IngameState?.IngameUi;
+            if (ingameUi == null) return new List<NormalInventoryItem>();
+
+            var invPanel = ingameUi.InventoryPanel;
+            if (invPanel == null || !invPanel.IsValid) return new List<NormalInventoryItem>();
+
+            var invElement = invPanel[ExileCore.Shared.Enums.InventoryIndex.PlayerInventory];
+            if (invElement == null || !invElement.IsValid) return new List<NormalInventoryItem>();
+
+            return invElement.VisibleInventoryItems?.Where(i => i != null && i.IsValid).ToList() ?? new List<NormalInventoryItem>();
+        }
+        catch
+        {
+            return new List<NormalInventoryItem>();
         }
     }
 }

@@ -18,6 +18,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 {
     private ShopAdapterFactory _adapterFactory = new ShopAdapterFactory();
     private PurchaseExecutor? _purchaseExecutor;
+    private StashDepositService? _stashDepositService;
     private Coroutine? _currentCoroutine;
     private bool _wasShopOpenLastFrame;
     private bool _isPausedByUser = false;
@@ -37,7 +38,8 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         _adapterFactory = new ShopAdapterFactory();
         if (GameController != null && Settings != null)
         {
-            _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
+            _stashDepositService = new StashDepositService(GameController, Settings);
+            _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory, _stashDepositService);
         }
 
         // Tu dong chuyen gia tri cu (787, 545) sang toa do chuan xac (750, 575)
@@ -165,6 +167,15 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 {
                     _hasScannedCurrentShop = true;
                     StartPurchaseCoroutine();
+                }
+            }
+
+            // 5. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG
+            if (!isShopOpen && !_isPausedByUser && Settings?.AutoDepositWhenFull?.Value == true && _stashDepositService != null && _stashDepositService.NeedsDeposit() && !_stashDepositService.IsDepositing)
+            {
+                if (!isRunning)
+                {
+                    StartDepositCoroutine();
                 }
             }
 
@@ -389,10 +400,12 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         if (Settings?.HighlightOnlyMode?.Value == true || _isPausedByUser) return;
         if (_currentCoroutine != null && !_currentCoroutine.IsDone) return;
         if (_purchaseExecutor != null && _purchaseExecutor.IsRunning) return;
+        if (_stashDepositService != null && _stashDepositService.IsDepositing) return;
 
         if (_purchaseExecutor == null && GameController != null && Settings != null)
         {
-            _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
+            if (_stashDepositService == null) _stashDepositService = new StashDepositService(GameController, Settings);
+            _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory, _stashDepositService);
         }
 
         if (_purchaseExecutor != null)
@@ -407,6 +420,30 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         }
     }
 
+    private void StartDepositCoroutine()
+    {
+        if (Settings?.HighlightOnlyMode?.Value == true || _isPausedByUser) return;
+        if (_currentCoroutine != null && !_currentCoroutine.IsDone) return;
+        if (_stashDepositService != null && _stashDepositService.IsDepositing) return;
+        if (_purchaseExecutor != null && _purchaseExecutor.IsRunning) return;
+
+        if (_stashDepositService == null && GameController != null && Settings != null)
+        {
+            _stashDepositService = new StashDepositService(GameController, Settings);
+        }
+
+        if (_stashDepositService != null)
+        {
+            _stashDepositService.RequestStop = false;
+            _currentCoroutine = new Coroutine(
+                _stashDepositService.ExecuteDepositCoroutine(),
+                this,
+                "ShopAutoBuyer_DepositRoutine"
+            );
+            ExileCore.Core.ParallelRunner.Run(_currentCoroutine);
+        }
+    }
+
     private void StopAllPurchases()
     {
         try
@@ -415,6 +452,11 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             {
                 _purchaseExecutor.RequestStop = true;
                 _purchaseExecutor.IsRunning = false;
+            }
+            if (_stashDepositService != null)
+            {
+                _stashDepositService.RequestStop = true;
+                _stashDepositService.IsDepositing = false;
             }
             if (_currentCoroutine != null)
             {
