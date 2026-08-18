@@ -100,6 +100,15 @@ public class Poe1ShopAdapter : IShopAdapter
                 {
                     itemInfo.ItemPath = itemEntity.Path ?? string.Empty;
 
+                    // Sockets Component
+                    var socketsComp = itemEntity.GetComponent<Sockets>();
+                    if (socketsComp != null)
+                    {
+                        itemInfo.Sockets = socketsComp.NumberOfSockets;
+                        itemInfo.Links = socketsComp.LargestLinkSize;
+                        itemInfo.IsRgb = socketsComp.IsRGB;
+                    }
+
                     // Base Component
                     var baseComp = itemEntity.GetComponent<Base>();
                     if (baseComp != null)
@@ -121,15 +130,6 @@ public class Poe1ShopAdapter : IShopAdapter
 
                         // Check Timeless Jewel identification strictly
                         CheckAndParseTimelessJewel(itemInfo, modsComp);
-                    }
-
-                    // Sockets Component
-                    var socketsComp = itemEntity.GetComponent<Sockets>();
-                    if (socketsComp != null)
-                    {
-                        itemInfo.Sockets = socketsComp.NumberOfSockets;
-                        itemInfo.Links = socketsComp.LargestLinkSize;
-                        itemInfo.IsRgb = socketsComp.IsRGB;
                     }
 
                     // Quality Component
@@ -167,40 +167,48 @@ public class Poe1ShopAdapter : IShopAdapter
     {
         if (itemInfo == null || modsComp == null) return;
 
+        // 1. KÍCH THƯỚC BẮT BUỘC PHẢI LÀ 1x1 (JEWEL) VÀ TUYỆT ĐỐI KHÔNG CÓ SOCKETS
+        if (itemInfo.Width != 1 || itemInfo.Height != 1 || itemInfo.Sockets > 0 || itemInfo.Links > 0)
+        {
+            itemInfo.IsTimelessJewel = false;
+            return;
+        }
+
         var name = itemInfo.Name ?? string.Empty;
         var baseName = itemInfo.BaseName ?? string.Empty;
         var path = itemInfo.ItemPath ?? string.Empty;
 
-        // 1. Phải là Unique Rarity
+        // 2. Phải là Unique Rarity
         if (itemInfo.Rarity != ItemRarity.Unique)
         {
             itemInfo.IsTimelessJewel = false;
             return;
         }
 
-        // 2. LOẠI TRỪ 100% CÁC TRANG BỊ KHÔNG PHẢI JEWEL (Amulet, Ring, Belt, Armour, Weapon, Flask, v.v.)
-        if (path.Contains("Amulet", StringComparison.OrdinalIgnoreCase) ||
+        // 3. LOẠI TRỪ 100% CÁC TRANG BỊ KHÔNG PHẢI JEWEL (Amulet, Ring, Belt, Armour, Weapon, Flask, v.v.)
+        if (path.Contains("Armour", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("BodyArmour", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("Weapon", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("Amulet", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("Ring", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("Belt", StringComparison.OrdinalIgnoreCase) ||
-            path.Contains("Armour", StringComparison.OrdinalIgnoreCase) ||
-            path.Contains("Weapon", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("Flask", StringComparison.OrdinalIgnoreCase) ||
-            path.Contains("Large", StringComparison.OrdinalIgnoreCase) ||
-            path.Contains("Medium", StringComparison.OrdinalIgnoreCase) ||
-            path.Contains("Small", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("Cluster", StringComparison.OrdinalIgnoreCase) ||
+            baseName.Contains("Armour", StringComparison.OrdinalIgnoreCase) ||
+            baseName.Contains("Garb", StringComparison.OrdinalIgnoreCase) ||
+            baseName.Contains("Robe", StringComparison.OrdinalIgnoreCase) ||
+            baseName.Contains("Chest", StringComparison.OrdinalIgnoreCase) ||
+            baseName.Contains("Vest", StringComparison.OrdinalIgnoreCase) ||
             baseName.Contains("Amulet", StringComparison.OrdinalIgnoreCase) ||
             baseName.Contains("Ring", StringComparison.OrdinalIgnoreCase) ||
             baseName.Contains("Belt", StringComparison.OrdinalIgnoreCase) ||
-            baseName.Contains("Cluster", StringComparison.OrdinalIgnoreCase) ||
-            name.Contains("Voices", StringComparison.OrdinalIgnoreCase) ||
-            name.Contains("Megalomaniac", StringComparison.OrdinalIgnoreCase))
+            baseName.Contains("Cluster", StringComparison.OrdinalIgnoreCase))
         {
             itemInfo.IsTimelessJewel = false;
             return;
         }
 
-        // 3. STRICT MATCH: Bắt buộc phải là 1 trong 5 loại Timeless Jewel chuẩn
+        // 4. STRICT MATCH: Bắt buộc phải là 1 trong 5 loại Timeless Jewel chuẩn
         var isExactName = name.Equals("Brutal Restraint", StringComparison.OrdinalIgnoreCase) ||
                           name.Equals("Glorious Vanity", StringComparison.OrdinalIgnoreCase) ||
                           name.Equals("Lethal Pride", StringComparison.OrdinalIgnoreCase) ||
@@ -247,7 +255,7 @@ public class Poe1ShopAdapter : IShopAdapter
 
         itemInfo.ExplicitMods = statsList;
 
-        // 4. Kiểm tra Historic mod / Seed
+        // 5. Kiểm tra Historic mod / Seed
         foreach (var stat in statsList)
         {
             if (string.IsNullOrWhiteSpace(stat)) continue;
