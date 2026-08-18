@@ -10,6 +10,7 @@ using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.Shared;
+using SharpDX;
 using ShopAutoBuyer.Core.Utils;
 using Vector2 = System.Numerics.Vector2;
 
@@ -140,53 +141,10 @@ public class StashDepositService
             }
 
             LogHelper.Info($"[BƯỚC 3: MỞ RƯƠNG XONG] Cửa sổ rương {targetStashName} đã mở! Bắt đầu cất đồ...");
-            yield return new WaitTime(350);
+            yield return new WaitTime(400);
 
-            // BƯỚC 4: TIẾN HÀNH CẤT ĐỒ
-            var mode = _settings.DepositMode?.Value ?? "Dung Stashie (F3) + Nut Cat Nhanh (Anh 2)";
-
-            // 1. Kích hoạt Plugin Stashie bằng phím tắt (Mặc định F3)
-            if (_settings.UseStashiePlugin?.Value == true || mode.Contains("Stashie", StringComparison.OrdinalIgnoreCase))
-            {
-                var stashieKey = _settings.StashieHotkey?.Value ?? Keys.F3;
-                LogHelper.Info($"[BƯỚC 4A: STASHIE] Bấm phím {stashieKey} kích hoạt Stashie tự động phân loại cất đồ vào từng Tab...");
-                Input.KeyDown(stashieKey);
-                Thread.Sleep(60);
-                Input.KeyUp(stashieKey);
-                
-                // Đợi Stashie hoàn tất phân loại và cất đồ vào các Tab
-                yield return new WaitTime(1500);
-            }
-
-            // 2. Click Nút Cất Nhanh Affinity (Ảnh 2)
-            if (mode.Contains("Nut Cat Nhanh", StringComparison.OrdinalIgnoreCase))
-            {
-                LogHelper.Info("[BƯỚC 4B] Bấm nút cất nhanh Affinity (Mũi tên sang trái cạnh số Gold)...");
-                ClickAffinityDepositButton();
-                yield return new WaitTime(500);
-            }
-
-            // 3. Nếu còn sót đồ trong hành trang -> Ctrl + Click từng món vào Tab còn trống
-            if (mode.Contains("Ctrl+Click", StringComparison.OrdinalIgnoreCase))
-            {
-                var inventoryItems = InventorySpaceChecker.GetPlayerInventoryItems(_gc);
-                if (inventoryItems.Count > 0)
-                {
-                    LogHelper.Info($"[BƯỚC 4C: CTRL+CLICK] Bắt đầu cất {inventoryItems.Count} món đồ còn lại vào Stash...");
-                    foreach (var invItem in inventoryItems)
-                    {
-                        if (RequestStop || !IsStashOpen(isGuildStash)) yield break;
-                        if (invItem == null || !invItem.IsValid || !invItem.IsVisible) continue;
-
-                        var rect = invItem.GetClientRect();
-                        if (rect.Width <= 0 || rect.Height <= 0) continue;
-
-                        var targetPos = new Vector2(rect.Center.X, rect.Center.Y);
-                        MouseHelper.CtrlLeftClickAt(targetPos, 40, 40);
-                        yield return new WaitTime(60);
-                    }
-                }
-            }
+            // BƯỚC 4: TIẾN HÀNH CẤT ĐỒ THÔNG MINH (STASHIE + NÚT CẤT NHANH + CTRL-CLICK + TỰ ĐỔI TAB)
+            yield return ExecuteSmartDepositRoutine(isGuildStash);
 
             yield return new WaitTime(300);
 
@@ -205,6 +163,134 @@ public class StashDepositService
         {
             IsDepositing = false;
         }
+    }
+
+    private IEnumerator ExecuteSmartDepositRoutine(bool isGuildStash)
+    {
+        // 1. Kích hoạt Plugin Stashie bằng phím tắt (Mặc định F3)
+        if (_settings.UseStashiePlugin?.Value == true)
+        {
+            var stashieKey = _settings.StashieHotkey?.Value ?? Keys.F3;
+            LogHelper.Info($"[BƯỚC 4A: STASHIE] Bấm phím {stashieKey} kích hoạt Stashie...");
+            Input.KeyDown(stashieKey);
+            Thread.Sleep(50);
+            Input.KeyUp(stashieKey);
+            yield return new WaitTime(800);
+        }
+
+        // 2. Click Nút Cất Nhanh Affinity (Ảnh 2)
+        LogHelper.Info("[BƯỚC 4B: NÚT CẤT NHANH] Bấm nút cất nhanh Affinity (Mũi tên cạnh số Gold)...");
+        ClickAffinityDepositButton();
+        yield return new WaitTime(400);
+
+        // 3. Kiểm tra các món đồ còn sót lại trong hành trang và Ctrl+Click
+        var remainingItems = GetPlayerInventoryItemsWithPositions();
+        if (remainingItems.Count == 0)
+        {
+            LogHelper.Info("[HOÀN TẤT CẤT ĐỒ] Toàn bộ vật phẩm đã được cất sạch sẽ vào rương!");
+            yield break;
+        }
+
+        LogHelper.Info($"[BƯỚC 4C: CTRL+CLICK] Còn {remainingItems.Count} món trong hành trang. Bắt đầu Ctrl+Click và tự động chuyển Tab nếu cần...");
+
+        // Thử cất qua các Tab (Tối đa 6 lần đổi Tab nếu Tab hiện tại không nhận hoặc bị đầy)
+        for (var tabCycle = 0; tabCycle < 6; tabCycle++)
+        {
+            if (RequestStop || !IsStashOpen(isGuildStash)) yield break;
+
+            var itemsToDeposit = GetPlayerInventoryItemsWithPositions();
+            if (itemsToDeposit.Count == 0)
+            {
+                LogHelper.Info("[HOÀN TẤT] Toàn bộ vật phẩm đã vào rương thành công!");
+                break;
+            }
+
+            foreach (var itemInfo in itemsToDeposit)
+            {
+                if (RequestStop || !IsStashOpen(isGuildStash)) yield break;
+
+                // Ctrl + Click vào chính xác ô đồ
+                MouseHelper.CtrlLeftClickAt(itemInfo.Pos, 40, 40);
+                yield return new WaitTime(70);
+            }
+
+            yield return new WaitTime(250);
+
+            // Kiểm tra lại xem số đồ còn lại có giảm không
+            var afterItems = GetPlayerInventoryItemsWithPositions();
+            if (afterItems.Count == 0)
+            {
+                LogHelper.Info("[HOÀN TẤT] Toàn bộ đồ đã được cất vào Stash!");
+                break;
+            }
+
+            // Nếu vẫn còn đồ chưa cất được (do Tab hiện tại như curr không nhận Invitation, hoặc Tab đầy)
+            LogHelper.Warn($"[CHUYỂN TAB] Còn {afterItems.Count} món chưa vào được Tab này -> Bấm [->] chuyển sang Tab tiếp theo...");
+            Input.KeyDown(Keys.Right);
+            Thread.Sleep(50);
+            Input.KeyUp(Keys.Right);
+            yield return new WaitTime(400);
+        }
+    }
+
+    private List<(int Col, int Row, Vector2 Pos, NormalInventoryItem? Item)> GetPlayerInventoryItemsWithPositions()
+    {
+        var result = new List<(int, int, Vector2, NormalInventoryItem?)>();
+        try
+        {
+            var ingameUi = _gc.IngameState?.IngameUi;
+            if (ingameUi == null) return result;
+
+            var invPanel = ingameUi.InventoryPanel;
+            var invElement = invPanel?[ExileCore.Shared.Enums.InventoryIndex.PlayerInventory];
+
+            // Tọa độ bounding box của lưới hành trang
+            RectangleF invRect;
+            if (invElement != null && invElement.IsValid && invElement.GetClientRect().Width > 100)
+            {
+                invRect = invElement.GetClientRect();
+            }
+            else
+            {
+                // Fallback theo tỉ lệ độ phân giải màn hình
+                var realWin = _gc.Window.GetWindowRectangleReal();
+                if (realWin.Width <= 0 || realWin.Height <= 0) realWin = _gc.Window.GetWindowRectangle();
+                var scaleX = realWin.Width / 1920f;
+                var scaleY = realWin.Height / 1080f;
+                invRect = new RectangleF(realWin.Left + 1295 * scaleX, realWin.Top + 615 * scaleY, 570 * scaleX, 240 * scaleY);
+            }
+
+            var cellW = invRect.Width / 12f;
+            var cellH = invRect.Height / 5f;
+
+            var items = invElement?.VisibleInventoryItems?.Where(i => i != null && i.IsValid).ToList() ?? new List<NormalInventoryItem>();
+
+            foreach (var invItem in items)
+            {
+                var col = invItem.InventPosX;
+                var row = invItem.InventPosY;
+                if (col >= 0 && col < 12 && row >= 0 && row < 5)
+                {
+                    var itemRect = invItem.GetClientRect();
+                    Vector2 clickPos;
+                    if (itemRect.Width > 10 && itemRect.Height > 10)
+                    {
+                        clickPos = new Vector2(itemRect.Center.X, itemRect.Center.Y);
+                    }
+                    else
+                    {
+                        clickPos = new Vector2(invRect.Left + (col + 0.5f) * cellW, invRect.Top + (row + 0.5f) * cellH);
+                    }
+                    result.Add((col, row, clickPos, invItem));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            LogHelper.Debug($"GetPlayerInventoryItemsWithPositions error: {ex.Message}");
+        }
+
+        return result;
     }
 
     public void ClickAffinityDepositButton()
@@ -228,7 +314,7 @@ public class StashDepositService
                 }
             }
 
-            // 2. Fallback: Dùng tọa độ chuẩn tỉ lệ màn hình (Mặc định 1080p: X=630, Y=615 hoặc cấu hình người dùng)
+            // 2. Fallback: Dùng tọa độ chuẩn góc dưới bên phải Stash Panel (1080p: X=632, Y=705)
             var realWin = _gc.Window.GetWindowRectangleReal();
             if (realWin.Width <= 0 || realWin.Height <= 0) realWin = _gc.Window.GetWindowRectangle();
             if (realWin.Width <= 0 || realWin.Height <= 0) return;
@@ -236,8 +322,8 @@ public class StashDepositService
             var scaleX = realWin.Width / 1920f;
             var scaleY = realWin.Height / 1080f;
 
-            var customX = _settings?.DepositButtonX?.Value ?? 630;
-            var customY = _settings?.DepositButtonY?.Value ?? 615;
+            var customX = _settings?.DepositButtonX?.Value ?? 632;
+            var customY = _settings?.DepositButtonY?.Value ?? 705;
 
             var targetPos = new Vector2(realWin.Left + customX * scaleX, realWin.Top + customY * scaleY);
             MouseHelper.LeftClickAt(targetPos, 60, 50);
