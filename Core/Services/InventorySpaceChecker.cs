@@ -125,27 +125,22 @@ public static class InventorySpaceChecker
             }
 
             // Fallback: check ServerData PlayerInventories
-            var serverInventories = gc?.IngameState?.ServerData?.PlayerInventories;
-            if (serverInventories != null)
+            var playerInv = gc?.IngameState?.ServerData?.PlayerInventories;
+            if (playerInv != null && playerInv.Count > 0)
             {
-                foreach (var sInv in serverInventories)
+                var inv = playerInv[0].Inventory;
+                var slotItems = inv?.InventorySlotItems;
+                if (slotItems != null)
                 {
-                    if (sInv.Inventory?.InventType == ExileCore.Shared.Enums.InventoryTypeE.Main)
+                    var occupied = 0;
+                    foreach (var sItem in slotItems)
                     {
-                        var items = sInv.Inventory.Items;
-                        if (items != null)
+                        if (sItem != null)
                         {
-                            var occupied = 0;
-                            foreach (var it in items)
-                            {
-                                if (it != null && it.IsValid)
-                                {
-                                    occupied += Math.Max(1, it.ItemWidth) * Math.Max(1, it.ItemHeight);
-                                }
-                            }
-                            return Math.Max(0, (InvColumns * InvRows) - occupied);
+                            occupied += Math.Max(1, sItem.SizeX) * Math.Max(1, sItem.SizeY);
                         }
                     }
+                    return Math.Max(0, (InvColumns * InvRows) - occupied);
                 }
             }
         }
