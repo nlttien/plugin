@@ -192,6 +192,24 @@ public class ShopAutoBuyerSettings : ISettings
     public RangeNode<int> MinLinks { get; set; } = new RangeNode<int>(0, 0, 6);
     public ToggleNode BuyRgbChromatic { get; set; } = new ToggleNode(false);
 
+    // ==========================================
+    // CAU HINH WEB TRADE (AUTOBUYPOE)
+    // ==========================================
+    [Menu("Link Tim Kiem Web Trade (TARGET_URL)")]
+    public TextNode TargetTradeUrl { get; set; } = new TextNode("https://www.pathofexile.com/trade/search/Allflame/eRDVrqvWFL");
+
+    [Menu("Email Dang Nhap PoE (Tu dong dien)")]
+    public TextNode PoeEmail { get; set; } = new TextNode("brendagruener42190@hotmail.com");
+
+    [Menu("Mat Khau PoE (Tu dong dien)")]
+    public TextNode PoePassword { get; set; } = new TextNode("Gege@999");
+
+    [Menu("Vi Tri Nguoi Ban Can Mua (0 = Nguoi 1, 2 = Nguoi 3...)")]
+    public RangeNode<int> SellerStartIndex { get; set; } = new RangeNode<int>(2, 0, 20);
+
+    [Menu("KHOI CHAY / DUNG CHROME WEB TRADE")]
+    public ButtonNode ToggleWebTradeButton { get; set; } = new ButtonNode();
+
     public bool IsTimelessMode()
     {
         // Chỉ chạy chế độ Timeless Jewel nếu BẬT OnlyBuyTimelessJewels VÀ KHÔNG điền tên item cụ thể trong BaseNamesFilter

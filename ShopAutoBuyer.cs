@@ -78,6 +78,15 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             };
         }
 
+        // Gan su kien cho nut Khoi chay Web Trade
+        if (Settings?.ToggleWebTradeButton != null)
+        {
+            Settings.ToggleWebTradeButton.OnPressed = () =>
+            {
+                ToggleWebTradeProcess();
+            };
+        }
+
         LogHelper.Info("Plugin ShopAutoBuyer da khoi tao thanh cong (Ho tro PoE 1 & PoE 2).");
         return true;
     }
@@ -494,5 +503,64 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             File.WriteAllText(bridgeFile, json);
         }
         catch { }
+    }
+
+    private static System.Diagnostics.Process? _pyProcess;
+
+    private void ToggleWebTradeProcess()
+    {
+        try
+        {
+            var pyPath = @"D:\codecuatien\autobuypoe\open_profile.py";
+            if (_pyProcess != null && !_pyProcess.HasExited)
+            {
+                _pyProcess.Kill();
+                _pyProcess.Dispose();
+                _pyProcess = null;
+                NotifyWebTradeStatus("STOPPED");
+                LogHelper.Warn(">>> [WebTrade] DA DUNG CHROME RUNNER! <<<");
+            }
+            else
+            {
+                if (!File.Exists(pyPath))
+                {
+                    LogHelper.Error($"Khong tim thay file open_profile.py tai: {pyPath}");
+                    return;
+                }
+
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "python",
+                    Arguments = $"\"{pyPath}\"",
+                    WorkingDirectory = Path.GetDirectoryName(pyPath) ?? "",
+                    UseShellExecute = true
+                };
+
+                if (!string.IsNullOrWhiteSpace(Settings?.TargetTradeUrl?.Value))
+                {
+                    psi.EnvironmentVariables["TARGET_URL"] = Settings.TargetTradeUrl.Value;
+                }
+                if (!string.IsNullOrWhiteSpace(Settings?.PoeEmail?.Value))
+                {
+                    psi.EnvironmentVariables["POE_EMAIL"] = Settings.PoeEmail.Value;
+                }
+                if (!string.IsNullOrWhiteSpace(Settings?.PoePassword?.Value))
+                {
+                    psi.EnvironmentVariables["POE_PASSWORD"] = Settings.PoePassword.Value;
+                }
+                if (Settings?.SellerStartIndex != null)
+                {
+                    psi.EnvironmentVariables["SELLER_START_INDEX"] = Settings.SellerStartIndex.Value.ToString();
+                }
+
+                _pyProcess = System.Diagnostics.Process.Start(psi);
+                NotifyWebTradeStatus("WAITING_IN_GAME");
+                LogHelper.Info(">>> [WebTrade] DA KHOI DONG CHROME PLAYWRIGHT RUNNER! <<<");
+            }
+        }
+        catch (Exception ex)
+        {
+            LogHelper.Error($"Loi khi dieu khien Web Trade process: {ex.Message}");
+        }
     }
 }
