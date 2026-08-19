@@ -27,8 +27,8 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     private DateTime _lastScanTime = DateTime.MinValue;
     private DateTime _lastNoItemsSignalTime = DateTime.MinValue;
     private DateTime _lastModalClickTime = DateTime.MinValue;
+    private DateTime _lastModalCheckTime = DateTime.MinValue;
     private bool _hasScannedCurrentShop = false;
-    private bool _isShopOpenCached;
     private bool _isPriceModalOpenCached = false;
     private uint _lastAreaHash = 0;
 
