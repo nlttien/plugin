@@ -91,8 +91,8 @@ public static class AutoInteractNpcService
                 return;
             }
 
-            // 4. Nếu chưa mở Shop và chưa mở Dialog -> Tìm và click NPC (Faustus / Merchant / Vendor / Helena...)
-            if ((DateTime.Now - _lastNpcClickTime).TotalMilliseconds < 1200) return;
+            // 4. Nếu chưa mở Shop và chưa mở Dialog -> Tìm và click đúng NPC Faustus / Merchant
+            if ((DateTime.Now - _lastNpcClickTime).TotalMilliseconds < 1500) return;
 
             // Cách A: Tìm nhãn chữ trên mặt đất
             var labels = ingameUi.ItemsOnGroundLabels;
@@ -104,28 +104,33 @@ public static class AutoInteractNpcService
                     var txt = l.Label.Text?.Trim() ?? string.Empty;
                     var path = l.ItemOnGround?.Path ?? string.Empty;
 
-                    if (txt.Contains("Faustus", StringComparison.OrdinalIgnoreCase) ||
-                        txt.Contains("Merchant", StringComparison.OrdinalIgnoreCase) ||
-                        txt.Contains("Vendor", StringComparison.OrdinalIgnoreCase) ||
-                        txt.Contains("Dealer", StringComparison.OrdinalIgnoreCase) ||
-                        txt.Contains("Helena", StringComparison.OrdinalIgnoreCase) ||
-                        txt.Contains("Shop", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("Kalguur/VillageFaustus", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("NPC", StringComparison.OrdinalIgnoreCase))
+                    // CHỈ khớp chính xác tên Faustus hoặc Merchant/Vendor
+                    var isTargetNpc = txt.Contains("Faustus", StringComparison.OrdinalIgnoreCase) ||
+                                      txt.Contains("Merchant", StringComparison.OrdinalIgnoreCase) ||
+                                      txt.Contains("Black Market", StringComparison.OrdinalIgnoreCase) ||
+                                      path.Contains("VillageFaustus", StringComparison.OrdinalIgnoreCase);
+
+                    if (isTargetNpc)
                     {
                         var rect = l.Label.GetClientRect();
                         if (rect.Width > 0 && rect.Height > 0)
                         {
-                            _lastNpcClickTime = DateTime.Now;
-                            LogHelper.Info($"[CLICK NPC] Tự động bấm vào nhãn NPC '{txt}' tại: ({rect.Center.X:F0}, {rect.Center.Y:F0})");
-                            MouseHelper.LeftClickAt(new Vector2(rect.Center.X, rect.Center.Y), 50, 40);
-                            return;
+                            var center = new Vector2(rect.Center.X, rect.Center.Y);
+                            // Kiểm tra tọa độ an toàn trong vùng màn hình game
+                            if (center.X > 100 && center.X < gc.Window.GetWindowRectangle().Width - 100 &&
+                                center.Y > 100 && center.Y < gc.Window.GetWindowRectangle().Height - 100)
+                            {
+                                _lastNpcClickTime = DateTime.Now;
+                                LogHelper.Info($"[CLICK NPC] Tự động bấm vào nhãn NPC '{txt}' tại: ({center.X:F0}, {center.Y:F0})");
+                                MouseHelper.LeftClickAt(center, 50, 40);
+                                return;
+                            }
                         }
                     }
                 }
             }
 
-            // Cách B: Tìm Entity 3D và chiếu WorldToScreen
+            // Cách B: Tìm Entity Faustus 3D
             var entities = gc.EntityListWrapper?.OnlyValidEntities ?? gc.Entities;
             if (entities != null)
             {
@@ -135,13 +140,13 @@ public static class AutoInteractNpcService
                     var path = entity.Path ?? string.Empty;
                     var renderName = entity.RenderName ?? string.Empty;
 
-                    if (path.Contains("VillageFaustusHideout", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("Faustus", StringComparison.OrdinalIgnoreCase) ||
-                        renderName.Contains("Faustus", StringComparison.OrdinalIgnoreCase) ||
-                        renderName.Contains("Merchant", StringComparison.OrdinalIgnoreCase))
+                    if (path.Contains("VillageFaustus", StringComparison.OrdinalIgnoreCase) ||
+                        renderName.Contains("Faustus", StringComparison.OrdinalIgnoreCase))
                     {
                         var camPos = gc.IngameState.Camera.WorldToScreen(entity.Pos);
-                        if (camPos.X > 0 && camPos.Y > 0 && camPos.X < gc.Window.GetWindowRectangle().Width && camPos.Y < gc.Window.GetWindowRectangle().Height)
+                        if (camPos.X > 150 && camPos.Y > 150 && 
+                            camPos.X < gc.Window.GetWindowRectangle().Width - 150 && 
+                            camPos.Y < gc.Window.GetWindowRectangle().Height - 150)
                         {
                             _lastNpcClickTime = DateTime.Now;
                             LogHelper.Info($"[CLICK NPC ENTITY] Tự động bấm vào NPC '{renderName}' tại: ({camPos.X:F0}, {camPos.Y:F0})");

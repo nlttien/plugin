@@ -163,3 +163,6 @@
 [2026-08-19 17:25:10] [ĐÃ MUA] Incandescent Invitation | Giá: 186 Chaos Orb (Max)
 [2026-08-19 17:32:04] [ĐÃ MUA] Incandescent Invitation | Giá: 186 Chaos Orb (Max)
 [2026-08-19 17:32:19] [ĐÃ MUA] Incandescent Invitation | Giá: 186 Chaos Orb (Max)
+[2026-08-19 17:41:35] [ĐÃ MUA] Incandescent Invitation | Giá: 186 Chaos Orb (Max)
+[2026-08-19 17:42:51] [ĐÃ MUA] Incandescent Invitation | Giá: 145 Chaos Orb (700 Gold)
+[2026-08-19 17:42:58] [ĐÃ MUA] Incandescent Invitation | Giá: 145 Chaos Orb (700 Gold)
