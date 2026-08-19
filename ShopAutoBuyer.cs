@@ -533,7 +533,8 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     FileName = "python",
                     Arguments = $"\"{pyPath}\"",
                     WorkingDirectory = Path.GetDirectoryName(pyPath) ?? "",
-                    UseShellExecute = true
+                    UseShellExecute = false,
+                    CreateNoWindow = false
                 };
 
                 if (!string.IsNullOrWhiteSpace(Settings?.TargetTradeUrl?.Value))
