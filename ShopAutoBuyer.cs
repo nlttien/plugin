@@ -105,7 +105,8 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
             if (_purchaseExecutor == null && Settings != null)
             {
-                _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory);
+                if (_stashDepositService == null) _stashDepositService = new StashDepositService(GameController, Settings);
+                _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory, _stashDepositService);
             }
 
             // 1. Phim tat DUNG / TIEP TUC (F7)
@@ -199,12 +200,9 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             // 5. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG HOAC CHE DO TEST
             var shouldDeposit = (Settings?.AutoDepositWhenFull?.Value == true && _stashDepositService != null && _stashDepositService.NeedsDeposit()) ||
                                 (Settings?.TestDepositAfterEveryPurchase?.Value == true);
-            if (!isShopOpen && !_isPausedByUser && shouldDeposit && _stashDepositService != null && !_stashDepositService.IsDepositing)
+            if (!_isPausedByUser && shouldDeposit && _stashDepositService != null && !_stashDepositService.IsDepositing)
             {
-                if (!isRunning)
-                {
-                    StartDepositCoroutine();
-                }
+                StartDepositCoroutine();
             }
 
             _wasShopOpenLastFrame = isShopOpen;
@@ -451,9 +449,14 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     private void StartDepositCoroutine()
     {
         if (Settings?.HighlightOnlyMode?.Value == true || _isPausedByUser) return;
-        if (_currentCoroutine != null && !_currentCoroutine.IsDone) return;
         if (_stashDepositService != null && _stashDepositService.IsDepositing) return;
-        if (_purchaseExecutor != null && _purchaseExecutor.IsRunning) return;
+
+        // Dừng tiến trình mua hàng nếu đang chạy để ưu tiên về cất đồ
+        if (_purchaseExecutor != null)
+        {
+            _purchaseExecutor.RequestStop = true;
+            _purchaseExecutor.IsRunning = false;
+        }
 
         if (_stashDepositService == null && GameController != null && Settings != null)
         {

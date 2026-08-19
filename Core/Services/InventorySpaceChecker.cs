@@ -17,20 +17,24 @@ public static class InventorySpaceChecker
     {
         try
         {
-            var ingameUi = gc?.Game?.IngameState?.IngameUi;
-            if (ingameUi == null) return true; // Fail-open to allow manual safety
+            var freeSlots = GetFreeSlotsCount(gc);
+            var neededSlots = Math.Max(1, itemWidth) * Math.Max(1, itemHeight);
+            if (freeSlots < neededSlots) return false;
+
+            var ingameUi = gc?.IngameState?.IngameUi ?? gc?.Game?.IngameState?.IngameUi;
+            if (ingameUi == null) return freeSlots >= neededSlots;
 
             var invPanel = ingameUi.InventoryPanel;
-            if (invPanel == null || !invPanel.IsValid || !invPanel.IsVisible)
+            if (invPanel == null || !invPanel.IsValid)
             {
-                return true;
+                return freeSlots >= neededSlots;
             }
 
             var invElement = invPanel[ExileCore.Shared.Enums.InventoryIndex.PlayerInventory];
-            if (invElement == null || !invElement.IsValid) return true;
+            if (invElement == null || !invElement.IsValid) return freeSlots >= neededSlots;
 
             var items = invElement.VisibleInventoryItems;
-            if (items == null) return true;
+            if (items == null) return freeSlots >= neededSlots;
 
             var grid = new bool[InvColumns, InvRows];
 
@@ -94,40 +98,67 @@ public static class InventorySpaceChecker
     {
         try
         {
-            var ingameUi = gc?.Game?.IngameState?.IngameUi;
-            if (ingameUi == null) return 60;
-
-            var invPanel = ingameUi.InventoryPanel;
-            if (invPanel == null || !invPanel.IsValid) return 60;
-
-            var invElement = invPanel[ExileCore.Shared.Enums.InventoryIndex.PlayerInventory];
-            if (invElement == null || !invElement.IsValid) return 60;
-
-            var items = invElement.VisibleInventoryItems;
-            if (items == null) return 60;
-
-            var occupied = 0;
-            foreach (var invItem in items)
+            var ingameUi = gc?.IngameState?.IngameUi ?? gc?.Game?.IngameState?.IngameUi;
+            if (ingameUi != null)
             {
-                if (invItem != null && invItem.IsValid)
+                var invPanel = ingameUi.InventoryPanel;
+                if (invPanel != null && invPanel.IsValid)
                 {
-                    occupied += Math.Max(1, invItem.ItemWidth) * Math.Max(1, invItem.ItemHeight);
+                    var invElement = invPanel[ExileCore.Shared.Enums.InventoryIndex.PlayerInventory];
+                    if (invElement != null && invElement.IsValid)
+                    {
+                        var items = invElement.VisibleInventoryItems;
+                        if (items != null)
+                        {
+                            var occupied = 0;
+                            foreach (var invItem in items)
+                            {
+                                if (invItem != null && invItem.IsValid)
+                                {
+                                    occupied += Math.Max(1, invItem.ItemWidth) * Math.Max(1, invItem.ItemHeight);
+                                }
+                            }
+                            return Math.Max(0, (InvColumns * InvRows) - occupied);
+                        }
+                    }
                 }
             }
 
-            return Math.Max(0, (InvColumns * InvRows) - occupied);
+            // Fallback: check ServerData PlayerInventories
+            var serverInventories = gc?.IngameState?.ServerData?.PlayerInventories;
+            if (serverInventories != null)
+            {
+                foreach (var sInv in serverInventories)
+                {
+                    if (sInv.Inventory?.InventType == ExileCore.Shared.Enums.InventoryTypeE.Main)
+                    {
+                        var items = sInv.Inventory.Items;
+                        if (items != null)
+                        {
+                            var occupied = 0;
+                            foreach (var it in items)
+                            {
+                                if (it != null && it.IsValid)
+                                {
+                                    occupied += Math.Max(1, it.ItemWidth) * Math.Max(1, it.ItemHeight);
+                                }
+                            }
+                            return Math.Max(0, (InvColumns * InvRows) - occupied);
+                        }
+                    }
+                }
+            }
         }
-        catch
-        {
-            return 60;
-        }
+        catch { }
+
+        return 60;
     }
 
     public static IList<NormalInventoryItem> GetPlayerInventoryItems(GameController gc)
     {
         try
         {
-            var ingameUi = gc?.Game?.IngameState?.IngameUi;
+            var ingameUi = gc?.IngameState?.IngameUi ?? gc?.Game?.IngameState?.IngameUi;
             if (ingameUi == null) return new List<NormalInventoryItem>();
 
             var invPanel = ingameUi.InventoryPanel;
