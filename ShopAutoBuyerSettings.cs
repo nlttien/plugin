@@ -56,12 +56,11 @@ public class ShopAutoBuyerSettings : ISettings
         Value = "Ruong Thuong (Personal Stash)"
     };
 
-    [Menu("Che Do Cat Do")]
-    public ListNode DepositMode { get; set; } = new ListNode
-    {
-        Values = new List<string> { "Dung Stashie (F3) + Nut Cat Nhanh (Anh 2)", "Chi Dung Stashie (F3)", "Nut Cat Nhanh Affinity (Anh 2)", "Ctrl+Click Vao Tab Con Trong" },
-        Value = "Dung Stashie (F3) + Nut Cat Nhanh (Anh 2)"
-    };
+    [Menu("Ten Tab Ruong Can Cat (Mac dinh: boss)")]
+    public TextNode TargetStashTabName { get; set; } = new TextNode("boss");
+
+    [Menu("Chi Cat Vao Dung Tab Nay (Khong doi Tab khac)")]
+    public ToggleNode OnlyDepositToTargetTab { get; set; } = new ToggleNode(true);
 
     [Menu("Nguong O Trong Toi Thieu (Con duoi X o thi ve cat do)")]
     public RangeNode<int> MinFreeSlotsThreshold { get; set; } = new RangeNode<int>(2, 1, 10);

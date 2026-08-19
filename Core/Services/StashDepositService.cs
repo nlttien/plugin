@@ -184,34 +184,36 @@ public class StashDepositService
 
     private IEnumerator ExecuteSmartDepositRoutine(bool isGuildStash)
     {
-        // 1. Kích hoạt Plugin Stashie bằng phím tắt (Mặc định F3)
-        if (_settings.UseStashiePlugin?.Value == true)
+        var targetTabName = _settings.TargetStashTabName?.Value?.Trim() ?? "boss";
+        var onlyTargetTab = _settings.OnlyDepositToTargetTab?.Value ?? true;
+
+        if (!string.IsNullOrEmpty(targetTabName))
         {
-            var stashieKey = _settings.StashieHotkey?.Value ?? Keys.F3;
-            LogHelper.Info($"[BƯỚC 4A: STASHIE] Bấm phím {stashieKey} kích hoạt Stashie...");
-            Input.KeyDown(stashieKey);
-            Thread.Sleep(50);
-            Input.KeyUp(stashieKey);
-            yield return new WaitTime(800);
+            // Chuyển trực tiếp sang Tab mục tiêu (ví dụ: 'boss')
+            yield return SwitchToTabNamed(targetTabName, isGuildStash);
+            yield return new WaitTime(300);
+        }
+        else
+        {
+            // 1. Kích hoạt Plugin Stashie nếu không chỉ định Tab
+            if (_settings.UseStashiePlugin?.Value == true)
+            {
+                var stashieKey = _settings.StashieHotkey?.Value ?? Keys.F3;
+                LogHelper.Info($"[BƯỚC 4A: STASHIE] Bấm phím {stashieKey} kích hoạt Stashie...");
+                Input.KeyDown(stashieKey);
+                Thread.Sleep(50);
+                Input.KeyUp(stashieKey);
+                yield return new WaitTime(800);
+            }
+
+            // 2. Click Nút Cất Nhanh Affinity
+            ClickAffinityDepositButton();
+            yield return new WaitTime(400);
         }
 
-        // 2. Click Nút Cất Nhanh Affinity (Ảnh 2)
-        LogHelper.Info("[BƯỚC 4B: NÚT CẤT NHANH] Bấm nút cất nhanh Affinity (Mũi tên cạnh số Gold)...");
-        ClickAffinityDepositButton();
-        yield return new WaitTime(400);
-
-        // 3. Kiểm tra các món đồ còn sót lại trong hành trang và Ctrl+Click
-        var remainingItems = GetPlayerInventoryItemsWithPositions();
-        if (remainingItems.Count == 0)
-        {
-            LogHelper.Info("[HOÀN TẤT CẤT ĐỒ] Toàn bộ vật phẩm đã được cất sạch sẽ vào rương!");
-            yield break;
-        }
-
-        LogHelper.Info($"[BƯỚC 4C: CTRL+CLICK] Còn {remainingItems.Count} món trong hành trang. Bắt đầu Ctrl+Click và tự động chuyển Tab nếu cần...");
-
-        // Thử cất qua các Tab (Tối đa 6 lần đổi Tab nếu Tab hiện tại không nhận hoặc bị đầy)
-        for (var tabCycle = 0; tabCycle < 6; tabCycle++)
+        // 3. Ctrl+Click toàn bộ vật phẩm trong hành trang vào Tab hiện tại
+        var maxCycles = onlyTargetTab ? 1 : 6;
+        for (var tabCycle = 0; tabCycle < maxCycles; tabCycle++)
         {
             if (RequestStop || !IsStashOpen(isGuildStash)) yield break;
 
@@ -222,18 +224,18 @@ public class StashDepositService
                 break;
             }
 
+            LogHelper.Info($"[CTRL+CLICK] Đang cất {itemsToDeposit.Count} món vào Tab '{targetTabName}'...");
             foreach (var itemInfo in itemsToDeposit)
             {
                 if (RequestStop || !IsStashOpen(isGuildStash)) yield break;
 
-                // Ctrl + Click vào chính xác ô đồ
-                MouseHelper.CtrlLeftClickAt(itemInfo.Pos, 40, 40);
-                yield return new WaitTime(70);
+                // Ctrl + Click vào ô đồ
+                MouseHelper.CtrlLeftClickAt(itemInfo.Pos, 35, 35);
+                yield return new WaitTime(60);
             }
 
-            yield return new WaitTime(250);
+            yield return new WaitTime(200);
 
-            // Kiểm tra lại xem số đồ còn lại có giảm không
             var afterItems = GetPlayerInventoryItemsWithPositions();
             if (afterItems.Count == 0)
             {
@@ -241,12 +243,84 @@ public class StashDepositService
                 break;
             }
 
-            // Nếu vẫn còn đồ chưa cất được (do Tab hiện tại như curr không nhận Invitation, hoặc Tab đầy)
-            LogHelper.Warn($"[CHUYỂN TAB] Còn {afterItems.Count} món chưa vào được Tab này -> Bấm [->] chuyển sang Tab tiếp theo...");
-            Input.KeyDown(Keys.Right);
-            Thread.Sleep(50);
-            Input.KeyUp(Keys.Right);
-            yield return new WaitTime(400);
+            if (!onlyTargetTab)
+            {
+                LogHelper.Warn($"[CHUYỂN TAB] Còn {afterItems.Count} món chưa vào được Tab này -> Bấm [->] chuyển sang Tab tiếp theo...");
+                Input.KeyDown(Keys.Right);
+                Thread.Sleep(50);
+                Input.KeyUp(Keys.Right);
+                yield return new WaitTime(400);
+            }
+            else
+            {
+                LogHelper.Info($"[XONG] Đã cất toàn bộ vật phẩm có thể vào Tab '{targetTabName}'!");
+                break;
+            }
+        }
+    }
+
+    private IEnumerator SwitchToTabNamed(string targetTabName, bool isGuildStash)
+    {
+        if (string.IsNullOrWhiteSpace(targetTabName)) yield break;
+
+        LogHelper.Info($"[CHỌN TAB] Đang tìm và chuyển sang Tab '{targetTabName}'...");
+
+        var ingameUi = _gc.IngameState?.IngameUi ?? _gc.Game?.IngameState?.IngameUi;
+        if (ingameUi == null) yield break;
+
+        var stashEl = (isGuildStash && ingameUi.GuildStashElement?.IsVisible == true)
+            ? (ExileCore.PoEMemory.Elements.StashElement)ingameUi.GuildStashElement
+            : ingameUi.StashElement;
+
+        if (stashEl != null)
+        {
+            // 1. Thử click trực tiếp vào nút Tab có chữ targetTabName (ví dụ 'boss')
+            var tabBtn = FindElementWithText(stashEl, targetTabName);
+            if (tabBtn != null && tabBtn.IsValid && tabBtn.IsVisible)
+            {
+                var rect = tabBtn.GetClientRect();
+                if (rect.Width > 0 && rect.Height > 0)
+                {
+                    MouseHelper.LeftClickAt(new Vector2(rect.Center.X, rect.Center.Y), 50, 30);
+                    LogHelper.Info($"[CHỌN TAB] Đã click nút Tab '{targetTabName}' thành công!");
+                    yield return new WaitTime(400);
+                    yield break;
+                }
+            }
+
+            // 2. Thử chuyển bằng index qua AllStashNames
+            var names = stashEl.AllStashNames;
+            if (names != null)
+            {
+                int targetIdx = -1;
+                for (int i = 0; i < names.Count; i++)
+                {
+                    if (names[i].Equals(targetTabName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        targetIdx = i;
+                        break;
+                    }
+                }
+
+                if (targetIdx >= 0)
+                {
+                    for (int step = 0; step < 20; step++)
+                    {
+                        var currentIdx = stashEl.IndexVisibleStash;
+                        if (currentIdx == targetIdx)
+                        {
+                            LogHelper.Info($"[CHỌN TAB] Đã chuyển tới Tab '{targetTabName}' (Index {targetIdx})!");
+                            break;
+                        }
+
+                        var key = currentIdx < targetIdx ? Keys.Right : Keys.Left;
+                        Input.KeyDown(key);
+                        Thread.Sleep(40);
+                        Input.KeyUp(key);
+                        yield return new WaitTime(250);
+                    }
+                }
+            }
         }
     }
 
