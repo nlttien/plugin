@@ -83,6 +83,9 @@ public class ShopAutoBuyerSettings : ISettings
     [Menu("Che Do Test: Luon ve cat do sau moi chuyen mua")]
     public ToggleNode TestDepositAfterEveryPurchase { get; set; } = new ToggleNode(false);
 
+    [Menu("Tu Dong Bam NPC/Faustus Khi Den Hideout Nguoi Ban")]
+    public ToggleNode AutoInteractHideoutNpc { get; set; } = new ToggleNode(true);
+
     // ==========================================
     // CAI DAT CHUNG
     // ==========================================

@@ -187,7 +187,16 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
-            // 4. TU DONG MUA HOAN TOAN (Hands-Free): Chi chay quét & mua 1 LAN DUY NHAT moi khi mo Shop (Khong lap lai vo tan)
+            // 4. TU DONG TUONG TAC VOI NPC/FAUSTUS KHI DEN HIDEOUT NGUOI BAN (De mo Shop)
+            if (!isShopOpen && !_isPausedByUser && Settings?.AutoInteractHideoutNpc?.Value == true)
+            {
+                if (!isRunning && (_stashDepositService == null || !_stashDepositService.IsDepositing))
+                {
+                    AutoInteractNpcService.TryOpenHideoutShop(GameController);
+                }
+            }
+
+            // 5. TU DONG MUA HOAN TOAN (Hands-Free): Chi chay quét & mua 1 LAN DUY NHAT moi khi mo Shop (Khong lap lai vo tan)
             if (isShopOpen && !_isPausedByUser && Settings?.HighlightOnlyMode?.Value != true && !_hasScannedCurrentShop)
             {
                 if (!isRunning)
@@ -197,7 +206,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
-            // 5. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG HOAC CHE DO TEST
+            // 6. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG HOAC CHE DO TEST
             var shouldDeposit = (Settings?.AutoDepositWhenFull?.Value == true && _stashDepositService != null && _stashDepositService.NeedsDeposit()) ||
                                 (Settings?.TestDepositAfterEveryPurchase?.Value == true);
             if (!_isPausedByUser && shouldDeposit && _stashDepositService != null && !_stashDepositService.IsDepositing)
