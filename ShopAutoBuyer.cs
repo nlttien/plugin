@@ -528,9 +528,10 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     return;
                 }
 
+                var pythonExe = FindPythonExecutable();
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = "python",
+                    FileName = pythonExe,
                     Arguments = $"\"{pyPath}\"",
                     WorkingDirectory = Path.GetDirectoryName(pyPath) ?? "",
                     UseShellExecute = false,
@@ -556,12 +557,45 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
                 _pyProcess = System.Diagnostics.Process.Start(psi);
                 NotifyWebTradeStatus("WAITING_IN_GAME");
-                LogHelper.Info(">>> [WebTrade] DA KHOI DONG CHROME PLAYWRIGHT RUNNER! <<<");
+                LogHelper.Info($">>> [WebTrade] DA KHOI DONG CHROME RUNNER ({pythonExe})! <<<");
             }
         }
         catch (Exception ex)
         {
             LogHelper.Error($"Loi khi dieu khien Web Trade process: {ex.Message}");
         }
+    }
+
+    private static string FindPythonExecutable()
+    {
+        var localPythonDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Programs\Python");
+        if (Directory.Exists(localPythonDir))
+        {
+            try
+            {
+                var found = Directory.GetFiles(localPythonDir, "python.exe", SearchOption.AllDirectories);
+                if (found.Length > 0) return found[0];
+            }
+            catch { }
+        }
+
+        var candidates = new[]
+        {
+            @"C:\Users\Admin\AppData\Local\Programs\Python\Python314\python.exe",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Programs\Python\Launcher\py.exe"),
+            @"C:\Program Files\Python314\python.exe",
+            @"C:\Program Files\Python312\python.exe",
+            @"C:\Program Files\Python311\python.exe",
+            @"C:\Program Files\Python310\python.exe",
+            "py",
+            "python"
+        };
+
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path)) return path;
+        }
+
+        return "python";
     }
 }
