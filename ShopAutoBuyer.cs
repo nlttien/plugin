@@ -192,9 +192,10 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
-            // 6. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG HOAC CHE DO TEST
-            var shouldDeposit = (Settings?.AutoDepositWhenFull?.Value == true && _stashDepositService != null && _stashDepositService.NeedsDeposit()) ||
-                                (Settings?.TestDepositAfterEveryPurchase?.Value == true);
+            // 5. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG (Tuyet doi khong tu bien ve khi dang mo Shop hoac dang mua do)
+            var shouldDeposit = !isShopOpen && !isRunning &&
+                                ((Settings?.AutoDepositWhenFull?.Value == true && _stashDepositService != null && _stashDepositService.NeedsDeposit()) ||
+                                 (Settings?.TestDepositAfterEveryPurchase?.Value == true));
             if (!_isPausedByUser && shouldDeposit && _stashDepositService != null && !_stashDepositService.IsDepositing)
             {
                 StartDepositCoroutine();

@@ -167,17 +167,8 @@ public class PurchaseExecutor
                         // 2. Kiểm tra ô trống hành trang trước khi mua
                         if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height))
                         {
-                            LogHelper.Warn("Hành trang (Inventory) đã đầy! Kích hoạt tự động về Hideout cất đồ vào Rương...");
-                            if (_settings?.AutoDepositWhenFull?.Value == true && _stashDepositService != null)
-                            {
-                                var depositRoutine = new Coroutine(
-                                    _stashDepositService.ExecuteDepositCoroutine(),
-                                    null,
-                                    "ShopAutoBuyer_DepositRoutine"
-                                );
-                                ExileCore.Core.ParallelRunner.Run(depositRoutine);
-                            }
-                            yield break;
+                            LogHelper.Warn($"Hành trang (Inventory) đã đầy! Không còn đủ ô trống cho {item.DisplayName}. Kết thúc mua tại Shop này để chuẩn bị về cất đồ.");
+                            break;
                         }
 
                         // 3. Tọa độ tâm chính xác của ô đồ (+6px vào giữa icon)
