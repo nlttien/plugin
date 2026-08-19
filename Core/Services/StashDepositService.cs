@@ -224,13 +224,13 @@ public class StashDepositService
                 break;
             }
 
-            LogHelper.Info($"[CTRL+CLICK] Đang cất {itemsToDeposit.Count} món vào Tab '{targetTabName}'...");
+            LogHelper.Info($"[CTRL+SHIFT+CLICK] Đang cất {itemsToDeposit.Count} món vào Tab '{targetTabName}'...");
             foreach (var itemInfo in itemsToDeposit)
             {
                 if (RequestStop || !IsStashOpen(isGuildStash)) yield break;
 
-                // Ctrl + Click vào ô đồ
-                MouseHelper.CtrlLeftClickAt(itemInfo.Pos, 35, 35);
+                // Ctrl + Shift + Left Click vào ô đồ
+                MouseHelper.CtrlShiftLeftClickAt(itemInfo.Pos, 35, 35);
                 yield return new WaitTime(60);
             }
 

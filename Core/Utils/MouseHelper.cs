@@ -47,6 +47,27 @@ public static class MouseHelper
         Thread.Sleep(30);
     }
 
+    /// <summary>
+    /// Thực hiện Ctrl + Shift + Left Click tại vị trí mục tiêu (cất trực tiếp toàn bộ số lượng vào Guild Stash / Stash mà không hiện bảng hỏi số lượng).
+    /// </summary>
+    public static void CtrlShiftLeftClickAt(Vector2 target, int hoverWaitMs = 50, int holdMs = 40)
+    {
+        Input.SetCursorPos(target);
+        Thread.Sleep(hoverWaitMs);
+        Input.KeyDown(Keys.LControlKey);
+        Thread.Sleep(15);
+        Input.KeyDown(Keys.LShiftKey);
+        Thread.Sleep(15);
+        Input.LeftDown();
+        Thread.Sleep(holdMs);
+        Input.LeftUp();
+        Thread.Sleep(15);
+        Input.KeyUp(Keys.LShiftKey);
+        Thread.Sleep(15);
+        Input.KeyUp(Keys.LControlKey);
+        Thread.Sleep(20);
+    }
+
     public static void CtrlLeftClick()
     {
         Input.KeyDown(Keys.LControlKey);
@@ -55,6 +76,21 @@ public static class MouseHelper
         Thread.Sleep(50);
         Input.LeftUp();
         Thread.Sleep(35);
+        Input.KeyUp(Keys.LControlKey);
+    }
+
+    public static void CtrlShiftLeftClick()
+    {
+        Input.KeyDown(Keys.LControlKey);
+        Thread.Sleep(20);
+        Input.KeyDown(Keys.LShiftKey);
+        Thread.Sleep(20);
+        Input.LeftDown();
+        Thread.Sleep(40);
+        Input.LeftUp();
+        Thread.Sleep(20);
+        Input.KeyUp(Keys.LShiftKey);
+        Thread.Sleep(20);
         Input.KeyUp(Keys.LControlKey);
     }
 
