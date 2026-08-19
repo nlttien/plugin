@@ -27,10 +27,10 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     private DateTime _lastScanTime = DateTime.MinValue;
     private DateTime _lastNoItemsSignalTime = DateTime.MinValue;
     private DateTime _lastModalClickTime = DateTime.MinValue;
-    private DateTime _lastModalCheckTime = DateTime.MinValue;
     private bool _hasScannedCurrentShop = false;
     private bool _isShopOpenCached;
     private bool _isPriceModalOpenCached = false;
+    private uint _lastAreaHash = 0;
 
     public override bool Initialise()
     {
@@ -157,20 +157,15 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             if (adapter == null) return null!;
 
             var isShopOpen = adapter.IsShopOpen(GameController);
-            _isShopOpenCached = isShopOpen;
-
-            // Reset trang thai scan khi Shop vua moi duoc mo ra
-            if (isShopOpen && !_wasShopOpenLastFrame)
+            var currentAreaHash = GameController.IngameState?.Data?.CurrentAreaHash ?? 0;
+            if (currentAreaHash != _lastAreaHash)
             {
+                _lastAreaHash = currentAreaHash;
                 _hasScannedCurrentShop = false;
                 _isPriceModalOpenCached = false;
                 PurchaseExecutor.ScannedPriceCache.Clear();
-            }
-            else if (!isShopOpen && _wasShopOpenLastFrame)
-            {
-                _hasScannedCurrentShop = false;
-                _isPriceModalOpenCached = false;
-                PurchaseExecutor.ScannedPriceCache.Clear();
+                StopAllPurchases();
+                LogHelper.Info($">>> [KHU VỰC MỚI] Đã chuyển khu vực ({currentAreaHash}). Hủy toàn bộ tác vụ mua cũ và sẵn sàng cho Shop mới! <<<");
             }
 
             var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);

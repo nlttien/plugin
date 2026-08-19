@@ -54,6 +54,9 @@ public class PurchaseExecutor
         RequestStop = false;
         LogHelper.Info("=== Bắt đầu tiến trình tự động quét & mua đồ trong Tab hiện tại ===");
 
+        var startAreaHash = _gc.IngameState?.Data?.CurrentAreaHash ?? 0;
+        NotifyBridge("BUYING", 0, null);
+
         var totalPurchasedCount = 0;
         var purchasedDetails = new List<string>();
 
@@ -63,11 +66,11 @@ public class PurchaseExecutor
             var adapter = _adapterFactory.GetAdapter(_gc, versionStr);
 
             // Chờ ngắn để UI và danh sách vật phẩm nạp đầy đủ vào bộ nhớ
-            yield return new WaitTime(150);
+            yield return new WaitTime(200);
 
-            if (!adapter.IsShopOpen(_gc))
+            if (!adapter.IsShopOpen(_gc) || (_gc.IngameState?.Data?.CurrentAreaHash != startAreaHash))
             {
-                LogHelper.Warn("Cửa sổ Shop chưa được mở!");
+                LogHelper.Warn("Cửa sổ Shop chưa được mở hoặc đã đổi khu vực!");
                 yield break;
             }
 
@@ -75,7 +78,7 @@ public class PurchaseExecutor
             var currentItems = adapter.GetAvailableItems(_gc);
             if (currentItems == null || currentItems.Count == 0)
             {
-                yield return new WaitTime(100);
+                yield return new WaitTime(200);
                 currentItems = adapter.GetAvailableItems(_gc);
                 if (currentItems == null || currentItems.Count == 0)
                 {
@@ -255,17 +258,23 @@ public class PurchaseExecutor
         finally
         {
             IsRunning = false;
-            // Ghi tín hiệu hoàn thành kèm danh sách chi tiết món đồ đã mua vào file cầu nối trade_bridge.json
-            try
-            {
-                var bridgeFile = BridgePathHelper.GetBridgeFilePath();
-                var statusStr = RequestStop ? "STOPPED" : "COMPLETED";
-                var detailsEscaped = string.Join(",", purchasedDetails.Select(d => $"\"{d.Replace("\"", "\\\"")}\""));
-                var json = $"{{\"status\":\"{statusStr}\",\"items_bought\":{totalPurchasedCount},\"last_items\":[{detailsEscaped}],\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
-                File.WriteAllText(bridgeFile, json);
-            }
-            catch { }
+            var statusStr = RequestStop ? "STOPPED" : "COMPLETED";
+            NotifyBridge(statusStr, totalPurchasedCount, purchasedDetails);
         }
+    }
+
+    private static void NotifyBridge(string status, int itemsBought, List<string>? details)
+    {
+        try
+        {
+            var bridgeFile = BridgePathHelper.GetBridgeFilePath();
+            var detailsEscaped = details != null && details.Count > 0
+                ? string.Join(",", details.Select(d => $"\"{d.Replace("\"", "\\\"")}\""))
+                : string.Empty;
+            var json = $"{{\"status\":\"{status}\",\"items_bought\":{itemsBought},\"last_items\":[{detailsEscaped}],\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
+            File.WriteAllText(bridgeFile, json);
+        }
+        catch { }
     }
 
     public static bool IsOccludedByLargerItem(ShopItemInfo item, IEnumerable<ShopItemInfo>? allItems)
