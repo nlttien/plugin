@@ -58,31 +58,48 @@ public class StashDepositService
             Input.KeyUp(Keys.Space);
             yield return new WaitTime(200);
 
-            // BƯỚC 2: BẤM PHÍM TẮT VỀ HIDEOUT (Mặc định F2)
-            var homeKey = _settings.HomeHotkey?.Value ?? Keys.F2;
-            LogHelper.Info($"[BƯỚC 1: VỀ NHÀ] Bấm phím {homeKey} để biến về Hideout...");
-            Input.KeyDown(homeKey);
-            Thread.Sleep(60);
-            Input.KeyUp(homeKey);
+            // BƯỚC 2: BIẾN VỀ HIDEOUT (LỆNH CHAT /HIDEOUT + NÚT LEAVE HIDEOUT + PHÍM F2)
+            var startAreaHash = _gc.IngameState?.Data?.CurrentAreaHash ?? 0;
+            LogHelper.Info(">>> [BƯỚC 1: VỀ NHÀ] Đang thực hiện biến về Hideout cá nhân qua lệnh /hideout... <<<");
 
-            // Chờ màn hình tải bản đồ chuyển về Hideout (Tối đa 15s)
-            yield return new WaitTime(2500);
-
-            var waitHideoutAttempts = 0;
-            while (waitHideoutAttempts < 25)
+            var teleportSuccess = false;
+            for (var tpAttempt = 0; tpAttempt < 3; tpAttempt++)
             {
                 if (RequestStop) yield break;
 
-                var area = _gc.Area?.CurrentArea;
-                if (area != null && (area.IsHideout || area.Name.Contains("Hideout", StringComparison.OrdinalIgnoreCase)))
+                // 1. Thử click nút "LEAVE HIDEOUT" trên giao diện màn hình nếu có
+                TryClickLeaveHideoutButton();
+                yield return new WaitTime(150);
+
+                // 2. Gõ lệnh chat /hideout trực tiếp vào game
+                SendHideoutChatCommand();
+                yield return new WaitTime(100);
+
+                // 3. Bấm phím HomeHotkey (mặc định F2)
+                var homeKey = _settings.HomeHotkey?.Value ?? Keys.F2;
+                Input.KeyDown(homeKey);
+                Thread.Sleep(40);
+                Input.KeyUp(homeKey);
+
+                // 4. Chờ xem bản đồ có bắt đầu load chuyển khu vực không (Tối đa 5s mỗi lần thử)
+                for (var w = 0; w < 10; w++)
                 {
-                    break;
+                    yield return new WaitTime(500);
+                    var currentHash = _gc.IngameState?.Data?.CurrentAreaHash ?? 0;
+                    var area = _gc.Area?.CurrentArea;
+                    if (currentHash != startAreaHash && area != null && (area.IsHideout || area.Name.Contains("Hideout", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        teleportSuccess = true;
+                        break;
+                    }
                 }
-                yield return new WaitTime(500);
-                waitHideoutAttempts++;
+
+                if (teleportSuccess) break;
+                LogHelper.Warn($"[VỀ NHÀ] Thử lại lệnh /hideout lần {tpAttempt + 2}...");
             }
 
-            yield return new WaitTime(1000); // Đợi ổn định vị trí nhân vật sau khi load
+            // Chờ nhân vật và các NPC/rương trong Hideout nạp đầy đủ (1.5s)
+            yield return new WaitTime(1500);
 
             // BƯỚC 3: TÌM VÀ MỞ RƯƠNG (STASH HOẶC GUILD STASH)
             var isGuildStash = _settings.StashType?.Value?.Contains("Guild", StringComparison.OrdinalIgnoreCase) == true;
@@ -463,6 +480,87 @@ public class StashDepositService
         catch { }
 
         return null;
+    }
+
+    private bool TryClickLeaveHideoutButton()
+    {
+        try
+        {
+            var ingameUi = _gc.IngameState?.IngameUi ?? _gc.Game?.IngameState?.IngameUi;
+            if (ingameUi == null) return false;
+
+            var leaveBtn = FindElementWithText(ingameUi, "LEAVE HIDEOUT") ?? FindElementWithText(ingameUi, "Leave Hideout");
+            if (leaveBtn != null && leaveBtn.IsValid && leaveBtn.IsVisible)
+            {
+                var rect = leaveBtn.GetClientRect();
+                if (rect.Width > 0 && rect.Height > 0)
+                {
+                    MouseHelper.LeftClickAt(new Vector2(rect.Center.X, rect.Center.Y), 50, 30);
+                    LogHelper.Info(">>> [LEAVE HIDEOUT] Da click nut 'LEAVE HIDEOUT' tren man hinh! <<<");
+                    return true;
+                }
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    private static ExileCore.PoEMemory.Element? FindElementWithText(ExileCore.PoEMemory.Element? root, string text)
+    {
+        if (root == null || !root.IsValid || !root.IsVisible) return null;
+        if (string.Equals(root.Text?.Trim(), text, StringComparison.OrdinalIgnoreCase)) return root;
+
+        if (root.Children != null)
+        {
+            foreach (var child in root.Children)
+            {
+                var found = FindElementWithText(child, text);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static void SendHideoutChatCommand()
+    {
+        try
+        {
+            // 1. Mo chat bang Enter
+            Input.KeyDown(Keys.Enter);
+            Thread.Sleep(40);
+            Input.KeyUp(Keys.Enter);
+            Thread.Sleep(100);
+
+            // 2. Chon tat ca va xoa
+            Input.KeyDown(Keys.LControlKey);
+            Input.KeyDown(Keys.A);
+            Thread.Sleep(25);
+            Input.KeyUp(Keys.A);
+            Input.KeyUp(Keys.LControlKey);
+            Thread.Sleep(25);
+            Input.KeyDown(Keys.Back);
+            Thread.Sleep(25);
+            Input.KeyUp(Keys.Back);
+            Thread.Sleep(40);
+
+            // 3. Go chuoi /hideout
+            var keys = new[] { Keys.OemQuestion, Keys.H, Keys.I, Keys.D, Keys.E, Keys.O, Keys.U, Keys.T };
+            foreach (var k in keys)
+            {
+                Input.KeyDown(k);
+                Thread.Sleep(20);
+                Input.KeyUp(k);
+                Thread.Sleep(20);
+            }
+
+            Thread.Sleep(50);
+            // 4. Gui lenh chat bang Enter
+            Input.KeyDown(Keys.Enter);
+            Thread.Sleep(40);
+            Input.KeyUp(Keys.Enter);
+            Thread.Sleep(100);
+        }
+        catch { }
     }
 
     private static void NotifyBridge(string status)
