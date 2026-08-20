@@ -60,52 +60,60 @@ public class StashDepositService
             Input.KeyUp(Keys.Space);
             yield return new WaitTime(200);
 
-            // BƯỚC 2: BIẾN VỀ HIDEOUT (LỆNH CHAT /HIDEOUT + NÚT LEAVE HIDEOUT + PHÍM F2)
-            var startAreaHash = _gc.IngameState?.Data?.CurrentAreaHash ?? 0;
-            LogHelper.Info(">>> [BƯỚC 1: VỀ NHÀ] Đang thực hiện biến về Hideout cá nhân qua lệnh /hideout... <<<");
-
-            var teleportSuccess = false;
-            for (var tpAttempt = 0; tpAttempt < 3; tpAttempt++)
-            {
-                if (RequestStop) yield break;
-
-                // 1. Thử click nút "LEAVE HIDEOUT" trên giao diện màn hình nếu có
-                TryClickLeaveHideoutButton();
-                yield return new WaitTime(150);
-
-                // 2. Gõ lệnh chat /hideout trực tiếp vào game
-                SendHideoutChatCommand();
-                yield return new WaitTime(100);
-
-                // 3. Bấm phím HomeHotkey (mặc định F2)
-                var homeKey = _settings.HomeHotkey?.Value ?? Keys.F2;
-                Input.KeyDown(homeKey);
-                Thread.Sleep(40);
-                Input.KeyUp(homeKey);
-
-                // 4. Chờ xem bản đồ có bắt đầu load chuyển khu vực không (Tối đa 5s mỗi lần thử)
-                for (var w = 0; w < 10; w++)
-                {
-                    yield return new WaitTime(500);
-                    var currentHash = _gc.IngameState?.Data?.CurrentAreaHash ?? 0;
-                    var area = _gc.Area?.CurrentArea;
-                    if (currentHash != startAreaHash && area != null && (area.IsHideout || area.Name.Contains("Hideout", StringComparison.OrdinalIgnoreCase)))
-                    {
-                        teleportSuccess = true;
-                        break;
-                    }
-                }
-
-                if (teleportSuccess) break;
-                LogHelper.Warn($"[VỀ NHÀ] Thử lại lệnh /hideout lần {tpAttempt + 2}...");
-            }
-
-            // Chờ nhân vật và các NPC/rương trong Hideout nạp đầy đủ (1.5s)
-            yield return new WaitTime(1500);
-
-            // BƯỚC 3: TÌM VÀ MỞ RƯƠNG (STASH HOẶC GUILD STASH)
+            // BƯỚC 2: BIẾN VỀ HIDEOUT NẾU ĐANG Ở NHÀ NGƯỜI BÁN
             var isGuildStash = _settings.StashType?.Value?.Contains("Guild", StringComparison.OrdinalIgnoreCase) == true;
             var targetStashName = isGuildStash ? "GUILD STASH" : "STASH";
+
+            if (IsInOwnHideout(isGuildStash))
+            {
+                LogHelper.Info(">>> [VỀ NHÀ] ĐÃ Ở TRONG HIDEOUT CỦA MÌNH. Bỏ qua lệnh /hideout và tiến hành mở rương! <<<");
+            }
+            else
+            {
+                var startAreaHash = _gc.IngameState?.Data?.CurrentAreaHash ?? 0;
+                LogHelper.Info(">>> [BƯỚC 1: VỀ NHÀ] Đang thực hiện biến về Hideout cá nhân qua lệnh /hideout... <<<");
+
+                var teleportSuccess = false;
+                for (var tpAttempt = 0; tpAttempt < 3; tpAttempt++)
+                {
+                    if (RequestStop) yield break;
+
+                    // 1. Thử click nút "LEAVE HIDEOUT" trên giao diện màn hình nếu có
+                    TryClickLeaveHideoutButton();
+                    yield return new WaitTime(150);
+
+                    // 2. Gõ lệnh chat /hideout trực tiếp vào game
+                    SendHideoutChatCommand();
+                    yield return new WaitTime(100);
+
+                    // 3. Bấm phím HomeHotkey (mặc định F2)
+                    var homeKey = _settings.HomeHotkey?.Value ?? Keys.F2;
+                    Input.KeyDown(homeKey);
+                    Thread.Sleep(40);
+                    Input.KeyUp(homeKey);
+
+                    // 4. Chờ xem bản đồ có bắt đầu load chuyển khu vực không (Tối đa 3s mỗi lần thử)
+                    for (var w = 0; w < 6; w++)
+                    {
+                        yield return new WaitTime(500);
+                        var currentHash = _gc.IngameState?.Data?.CurrentAreaHash ?? 0;
+                        var area = _gc.Area?.CurrentArea;
+                        if (currentHash != startAreaHash && area != null && (area.IsHideout || area.Name.Contains("Hideout", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            teleportSuccess = true;
+                            break;
+                        }
+                    }
+
+                    if (teleportSuccess || IsInOwnHideout(isGuildStash)) break;
+                    LogHelper.Warn($"[VỀ NHÀ] Thử lại lệnh /hideout lần {tpAttempt + 2}...");
+                }
+
+                // Chờ nhân vật và các NPC/rương trong Hideout nạp đầy đủ (1s)
+                yield return new WaitTime(1000);
+            }
+
+            // BƯỚC 3: TÌM VÀ MỞ RƯƠNG (STASH HOẶC GUILD STASH)
             LogHelper.Info($"[BƯỚC 2: TÌM RƯƠNG] Đang tìm rương {targetStashName} trong Hideout...");
 
             var stashOpened = false;
@@ -671,6 +679,56 @@ public class StashDepositService
         catch { }
 
         return null;
+    }
+
+    private bool IsInOwnHideout(bool isGuildStash)
+    {
+        try
+        {
+            var area = _gc.Area?.CurrentArea;
+            if (area == null || (!area.IsHideout && !area.Name.Contains("Hideout", StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
+
+            // Nếu có nút "LEAVE HIDEOUT" trên màn hình -> Đây là Hideout của người khác
+            if (HasLeaveHideoutButton())
+            {
+                return false;
+            }
+
+            // Nếu tìm thấy nhãn rương hoặc entity rương trong Hideout -> Đang ở nhà mình
+            if (FindStashLabelOnGround(isGuildStash) != null ||
+                FindStashLabelOnGround(isGuild: false) != null ||
+                FindStashEntity(isGuildStash) != null ||
+                FindStashEntity(isGuild: false) != null)
+            {
+                return true;
+            }
+
+            // Kiểm tra các nút đặc trưng của Hideout cá nhân (EDIT, RECLAIM ALL)
+            var ingameUi = _gc.IngameState?.IngameUi ?? _gc.Game?.IngameState?.IngameUi;
+            if (ingameUi != null && (FindElementWithText(ingameUi, "RECLAIM ALL") != null || FindElementWithText(ingameUi, "EDIT") != null))
+            {
+                return true;
+            }
+        }
+        catch { }
+
+        return false;
+    }
+
+    private bool HasLeaveHideoutButton()
+    {
+        try
+        {
+            var ingameUi = _gc.IngameState?.IngameUi ?? _gc.Game?.IngameState?.IngameUi;
+            if (ingameUi == null) return false;
+
+            var leaveBtn = FindElementWithText(ingameUi, "LEAVE HIDEOUT") ?? FindElementWithText(ingameUi, "Leave Hideout");
+            return leaveBtn != null && leaveBtn.IsValid && leaveBtn.IsVisible;
+        }
+        catch { return false; }
     }
 
     private bool TryClickLeaveHideoutButton()
