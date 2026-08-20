@@ -11,6 +11,7 @@ using ShopAutoBuyer.Core.Models;
 using ShopAutoBuyer.Core.Services;
 using ShopAutoBuyer.Core.Utils;
 using Vector2 = System.Numerics.Vector2;
+using ImGuiNET;
 
 namespace ShopAutoBuyer;
 
@@ -365,73 +366,73 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
     private void RenderStatusOverlayBox(bool isShopOpen)
     {
-        var boxX = 20f;
-        var boxY = 70f;
-        var boxW = 350f;
-        var boxH = isShopOpen ? (115f + Math.Min(_cachedMatchingItems.Count, 3) * 42f) : 75f;
+        ImGui.SetNextWindowPos(new Vector2(560, 170), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new Vector2(400, 240), ImGuiCond.FirstUseEver);
 
-        Graphics.DrawBox(new RectangleF(boxX, boxY, boxW, boxH), new Color(0, 0, 0, 215));
-        Graphics.DrawFrame(new RectangleF(boxX, boxY, boxW, boxH), _isPausedByUser ? Color.Red : Color.Goldenrod, 1);
+        ImGui.PushStyleColor(ImGuiCol.WindowBg, new System.Numerics.Vector4(0.04f, 0.06f, 0.10f, 0.92f));
+        ImGui.PushStyleColor(ImGuiCol.TitleBg, new System.Numerics.Vector4(0.18f, 0.12f, 0.05f, 0.95f));
+        ImGui.PushStyleColor(ImGuiCol.TitleBgActive, new System.Numerics.Vector4(0.35f, 0.22f, 0.08f, 1.0f));
+        ImGui.PushStyleColor(ImGuiCol.Border, new System.Numerics.Vector4(1.0f, 0.75f, 0.0f, 0.7f));
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 6f);
 
+        var isOpen = true;
         var title = _isPausedByUser 
-            ? "=== POE AUTO BUYER [DA TAM DUNG] ===" 
-            : "=== POE AUTO BUYER (ACTIVE AUTO) ===";
-        Graphics.DrawText(title, new Vector2(boxX + 12, boxY + 8), _isPausedByUser ? Color.Red : Color.Gold);
+            ? "🛒 POE Auto Buyer [PAUSED - F7 to Resume]" 
+            : "🛒 POE Auto Buyer (ACTIVE AUTO) [F7: Pause]";
 
-        var currentY = boxY + 28;
-
-        if (isShopOpen)
+        if (ImGui.Begin(title, ref isOpen, ImGuiWindowFlags.None))
         {
-            var maxChaos = Settings?.MaxChaosPrice?.Value ?? 300;
-            var detectedText = (Settings?.IsTimelessMode() == true)
-                ? $"Shop: MO | Hop le: {_cachedMatchingItems.Count} (Timeless 10-50c)"
-                : $"Shop: MO | Hop le: {_cachedMatchingItems.Count} (Gia <= {maxChaos}c)";
-            Graphics.DrawText(detectedText, new Vector2(boxX + 12, currentY), Color.LimeGreen);
-            currentY += 20;
-
-            if (_cachedMatchingItems.Count > 0)
+            if (isShopOpen)
             {
-                var displayCount = Math.Min(_cachedMatchingItems.Count, 3);
-                for (var i = 0; i < displayCount; i++)
-                {
-                    var item = _cachedMatchingItems[i];
-                    var itemName = $"* {item.DisplayName} [O {item.SlotX + 1},{item.SlotY + 1}]";
-                    Graphics.DrawText(itemName, new Vector2(boxX + 14, currentY), Color.Gold);
-                    currentY += 18;
+                var maxChaos = Settings?.MaxChaosPrice?.Value ?? 300;
+                var detectedText = (Settings?.IsTimelessMode() == true)
+                    ? $"Shop: OPEN | Matching: {_cachedMatchingItems.Count} (Timeless 10-50c)"
+                    : $"Shop: OPEN | Matching: {_cachedMatchingItems.Count} (Price <= {maxChaos}c)";
+                ImGui.TextColored(new System.Numerics.Vector4(0.2f, 1.0f, 0.2f, 1.0f), detectedText);
 
-                    var costInfo = !string.IsNullOrWhiteSpace(item.CostString) 
-                        ? $"  Gia: {item.CostString}" 
-                        : $"  Seed: {item.TimelessSeed} | Leader: {item.TimelessLeader}";
-                    Graphics.DrawText(costInfo, new Vector2(boxX + 14, currentY), Color.LightCyan);
-                    currentY += 22;
-                }
-
-                if (_isPausedByUser)
+                if (_cachedMatchingItems.Count > 0)
                 {
-                    Graphics.DrawText("Trang thai: >> DA DUNG << (Bam [F7] de tiep tuc)", new Vector2(boxX + 12, currentY + 2), Color.Red);
+                    var displayCount = Math.Min(_cachedMatchingItems.Count, 3);
+                    for (var i = 0; i < displayCount; i++)
+                    {
+                        var item = _cachedMatchingItems[i];
+                        ImGui.TextColored(new System.Numerics.Vector4(1.0f, 0.85f, 0.2f, 1.0f), $"* {item.DisplayName} [Slot {item.SlotX + 1},{item.SlotY + 1}]");
+                        var costInfo = !string.IsNullOrWhiteSpace(item.CostString) 
+                            ? $"  Cost: {item.CostString}" 
+                            : $"  Seed: {item.TimelessSeed} | Leader: {item.TimelessLeader}";
+                        ImGui.TextColored(new System.Numerics.Vector4(0.4f, 0.9f, 1.0f, 1.0f), costInfo);
+                    }
+
+                    if (_isPausedByUser)
+                    {
+                        ImGui.TextColored(new System.Numerics.Vector4(1.0f, 0.2f, 0.2f, 1.0f), "Status: >> PAUSED << (Press [F7] to resume)");
+                    }
+                    else
+                    {
+                        var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
+                        var statusMsg = isRunning ? "Status: >> AUTO-BUYING << [F7: Pause]" : "Status: >> AUTO-BUYING (Hands-Free) << [F7: Pause]";
+                        ImGui.TextColored(new System.Numerics.Vector4(0.2f, 1.0f, 0.2f, 1.0f), statusMsg);
+                    }
                 }
                 else
                 {
-                    var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
-                    var statusMsg = isRunning ? "Trang thai: >> DANG TU DONG MUA << [F7: Dung]" : "Trang thai: >> TU DONG MUA (Hands-Free) << [F7: Dung]";
-                    Graphics.DrawText(statusMsg, new Vector2(boxX + 12, currentY + 2), Color.LimeGreen);
+                    if (PurchaseExecutor.RecentPurchases.Count > 0)
+                    {
+                        ImGui.TextColored(new System.Numerics.Vector4(0.8f, 1.0f, 0.2f, 1.0f), $"Bought: {PurchaseExecutor.RecentPurchases[0]}");
+                    }
+                    ImGui.TextColored(new System.Numerics.Vector4(0.4f, 0.9f, 1.0f, 1.0f), "No more matching items -> Next page!");
                 }
             }
             else
             {
-                if (PurchaseExecutor.RecentPurchases.Count > 0)
-                {
-                    Graphics.DrawText($"Vua mua: {PurchaseExecutor.RecentPurchases[0]}", new Vector2(boxX + 12, currentY), Color.GreenYellow);
-                    currentY += 20;
-                }
-                Graphics.DrawText("Khong con do nao trong shop -> Chuyen tiep!", new Vector2(boxX + 12, currentY), Color.Cyan);
+                var waitMsg = _isPausedByUser ? "Paused. Press [F7] to resume." : "Waiting for Shop (Faustus, Merchant)... [F7: Pause]";
+                ImGui.TextColored(_isPausedByUser ? new System.Numerics.Vector4(1.0f, 0.3f, 0.3f, 1.0f) : new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), waitMsg);
             }
         }
-        else
-        {
-            var waitMsg = _isPausedByUser ? "Dang tam dung. Bam [F7] de tiep tuc." : "Dang cho mo Shop (Faustus, Merchant)... [F7: Dung]";
-            Graphics.DrawText(waitMsg, new Vector2(boxX + 12, currentY), _isPausedByUser ? Color.Red : Color.LightGray);
-        }
+        ImGui.End();
+
+        ImGui.PopStyleVar();
+        ImGui.PopStyleColor(4);
     }
 
     private void StartPurchaseCoroutine()
