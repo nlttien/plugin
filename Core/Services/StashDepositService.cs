@@ -512,65 +512,109 @@ public class StashDepositService
         }
     }
 
+    private Element? FindMatchingLabel(Element? root, bool isGuild)
+    {
+        if (root == null || !root.IsValid) return null;
+
+        var txt = (root.Text ?? string.Empty).Trim();
+        var txtNoTags = (root.TextNoTags ?? string.Empty).Trim();
+
+        if (isGuild)
+        {
+            if (txt.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                txtNoTags.Contains("Guild", StringComparison.OrdinalIgnoreCase))
+            {
+                return root;
+            }
+        }
+        else
+        {
+            var isGuildText = txt.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                              txtNoTags.Contains("Guild", StringComparison.OrdinalIgnoreCase);
+            if (!isGuildText && (txt.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                                 txtNoTags.Contains("Stash", StringComparison.OrdinalIgnoreCase)))
+            {
+                return root;
+            }
+        }
+
+        if (root.Children != null)
+        {
+            foreach (var child in root.Children)
+            {
+                var match = FindMatchingLabel(child, isGuild);
+                if (match != null) return match;
+            }
+        }
+
+        return null;
+    }
+
     private Element? FindStashLabelOnGround(bool isGuild)
     {
         try
         {
-            var labels = _gc.IngameState?.IngameUi?.ItemsOnGroundLabels;
-            if (labels == null) return null;
-
-            // 1. Tìm đúng loại rương được chọn (Guild Stash hoặc Stash thường)
-            foreach (var l in labels)
+            var labelSources = new List<IList<ItemsOnGroundLabelElement>?>
             {
-                if (l == null || !l.IsVisible || l.Label == null || !l.Label.IsValid) continue;
-                var txt = (l.Label.Text ?? string.Empty).Trim();
-                var txtNoTags = (l.Label.TextNoTags ?? string.Empty).Trim();
-                var path = l.ItemOnGround?.Path ?? string.Empty;
-                var renderName = l.ItemOnGround?.RenderName ?? string.Empty;
+                _gc.IngameState?.IngameUi?.ItemsOnGroundLabelsVisible,
+                _gc.IngameState?.IngameUi?.ItemsOnGroundLabels,
+                _gc.IngameState?.IngameUi?.ItemsOnGroundLabelElement?.VisibleGroundItemLabels
+            };
 
-                if (isGuild)
-                {
-                    if (txt.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
-                        txtNoTags.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("GuildStash", StringComparison.OrdinalIgnoreCase) ||
-                        renderName.Contains("Guild Stash", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return l.Label;
-                    }
-                }
-                else
-                {
-                    var isGuildLabel = txt.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
-                                       txtNoTags.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
-                                       path.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
-                                       renderName.Contains("Guild", StringComparison.OrdinalIgnoreCase);
+            foreach (var labels in labelSources)
+            {
+                if (labels == null) continue;
 
-                    if (!isGuildLabel && (txt.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
-                                          txtNoTags.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
-                                          path.Contains("Stash", StringComparison.OrdinalIgnoreCase)))
+                // 1. Khớp chính xác loại rương được yêu cầu (Guild Stash hoặc Stash)
+                foreach (var l in labels)
+                {
+                    if (l == null || l.Label == null || !l.Label.IsValid) continue;
+
+                    var path = l.ItemOnGround?.Path ?? string.Empty;
+                    var renderName = l.ItemOnGround?.RenderName ?? string.Empty;
+
+                    if (isGuild)
                     {
-                        return l.Label;
+                        if (path.Contains("GuildStash", StringComparison.OrdinalIgnoreCase) ||
+                            renderName.Contains("Guild Stash", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return l.Label;
+                        }
                     }
+                    else
+                    {
+                        if ((path.Contains("Stash", StringComparison.OrdinalIgnoreCase) || renderName.Contains("Stash", StringComparison.OrdinalIgnoreCase)) &&
+                            !path.Contains("Guild", StringComparison.OrdinalIgnoreCase) && !renderName.Contains("Guild", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return l.Label;
+                        }
+                    }
+
+                    // Tìm đệ quy trong cây con của l.Label (đáp ứng đúng node MiscGroundLabel bên trong)
+                    var matchedChild = FindMatchingLabel(l.Label, isGuild);
+                    if (matchedChild != null) return matchedChild;
                 }
             }
 
-            // 2. Dự phòng: Nếu không tìm thấy loại yêu cầu, click bất kỳ rương nào có nhãn Stash trên màn hình
-            foreach (var l in labels)
+            // 2. Dự phòng: Tìm bất kỳ nhãn rương nào có chữ Stash
+            foreach (var labels in labelSources)
             {
-                if (l == null || !l.IsVisible || l.Label == null || !l.Label.IsValid) continue;
-                var txt = (l.Label.Text ?? string.Empty).Trim();
-                var txtNoTags = (l.Label.TextNoTags ?? string.Empty).Trim();
-                var path = l.ItemOnGround?.Path ?? string.Empty;
-
-                if (txt.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
-                    txtNoTags.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
-                    path.Contains("Stash", StringComparison.OrdinalIgnoreCase))
+                if (labels == null) continue;
+                foreach (var l in labels)
                 {
-                    return l.Label;
+                    if (l == null || l.Label == null || !l.Label.IsValid) continue;
+                    var path = l.ItemOnGround?.Path ?? string.Empty;
+                    if (path.Contains("Stash", StringComparison.OrdinalIgnoreCase)) return l.Label;
+
+                    var matchedChild = FindMatchingLabel(l.Label, isGuild: false);
+                    if (matchedChild != null) return matchedChild;
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            LogHelper.Debug($"FindStashLabelOnGround error: {ex.Message}");
+        }
 
         return null;
     }
