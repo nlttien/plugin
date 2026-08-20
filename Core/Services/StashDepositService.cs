@@ -554,11 +554,10 @@ public class StashDepositService
     {
         try
         {
-            var labelSources = new List<IList<ItemsOnGroundLabelElement>?>
+            var labelSources = new List<IList<LabelOnGround>?>
             {
                 _gc.IngameState?.IngameUi?.ItemsOnGroundLabelsVisible,
-                _gc.IngameState?.IngameUi?.ItemsOnGroundLabels,
-                _gc.IngameState?.IngameUi?.ItemsOnGroundLabelElement?.VisibleGroundItemLabels
+                _gc.IngameState?.IngameUi?.ItemsOnGroundLabels
             };
 
             foreach (var labels in labelSources)
