@@ -11,6 +11,7 @@ using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared;
+using ExileCore.Shared.Enums;
 using SharpDX;
 using ShopAutoBuyer.Core.Utils;
 using Vector2 = System.Numerics.Vector2;
