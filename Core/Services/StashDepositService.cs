@@ -108,23 +108,26 @@ public class StashDepositService
             LogHelper.Info($"[BƯỚC 2: TÌM RƯƠNG] Đang tìm rương {targetStashName} trong Hideout...");
 
             var stashOpened = false;
-            for (var openAttempt = 0; openAttempt < 4; openAttempt++)
+            for (var openAttempt = 0; openAttempt < 5; openAttempt++)
             {
                 if (RequestStop) yield break;
 
                 // 1. Thử click trực tiếp vào nhãn chữ trên mặt đất (STASH / GUILD STASH)
                 var label = FindStashLabelOnGround(isGuildStash);
-                if (label != null && label.IsValid && label.IsVisible)
+                var clicked = false;
+                if (label != null && label.IsValid)
                 {
                     var rect = label.GetClientRect();
-                    if (rect.Width > 0 && rect.Height > 0)
+                    if (rect.Width > 5 && rect.Height > 5)
                     {
                         var clickPos = new Vector2(rect.Center.X, rect.Center.Y);
                         LogHelper.Info($"[CLICK NHÃN RƯƠNG] Bấm vào nhãn {targetStashName} tại: ({clickPos.X:F0}, {clickPos.Y:F0})");
-                        MouseHelper.LeftClickAt(clickPos, 100, 60);
+                        MouseHelper.LeftClickAt(clickPos, 80, 50);
+                        clicked = true;
                     }
                 }
-                else
+
+                if (!clicked)
                 {
                     // 2. Thử tìm Entity rương trong thế giới 3D và chiếu tọa độ lên màn hình (WorldToScreen)
                     var stashEntity = FindStashEntity(isGuildStash);
@@ -133,7 +136,8 @@ public class StashDepositService
                         var sharpDxPos = _gc.IngameState.Camera.WorldToScreen(stashEntity.Pos);
                         var screenPos = new Vector2(sharpDxPos.X, sharpDxPos.Y);
                         LogHelper.Info($"[CLICK ENTITY RƯƠNG] Bấm vào vị trí rương {targetStashName} tại: ({screenPos.X:F0}, {screenPos.Y:F0})");
-                        MouseHelper.LeftClickAt(screenPos, 100, 60);
+                        MouseHelper.LeftClickAt(screenPos, 80, 50);
+                        clicked = true;
                     }
                 }
 
@@ -149,7 +153,7 @@ public class StashDepositService
                 }
 
                 if (stashOpened) break;
-                yield return new WaitTime(600);
+                yield return new WaitTime(500);
             }
 
             if (!stashOpened)
@@ -514,25 +518,54 @@ public class StashDepositService
             var labels = _gc.IngameState?.IngameUi?.ItemsOnGroundLabels;
             if (labels == null) return null;
 
+            // 1. Tìm đúng loại rương được chọn (Guild Stash hoặc Stash thường)
             foreach (var l in labels)
             {
-                if (l == null || !l.IsVisible || l.Label == null || !l.Label.IsValid || !l.Label.IsVisible) continue;
+                if (l == null || !l.IsVisible || l.Label == null || !l.Label.IsValid) continue;
                 var txt = (l.Label.Text ?? string.Empty).Trim();
+                var txtNoTags = (l.Label.TextNoTags ?? string.Empty).Trim();
                 var path = l.ItemOnGround?.Path ?? string.Empty;
+                var renderName = l.ItemOnGround?.RenderName ?? string.Empty;
 
                 if (isGuild)
                 {
-                    if (txt.Contains("Guild", StringComparison.OrdinalIgnoreCase) && txt.Contains("Stash", StringComparison.OrdinalIgnoreCase))
+                    if (txt.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                        txtNoTags.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                        path.Contains("GuildStash", StringComparison.OrdinalIgnoreCase) ||
+                        renderName.Contains("Guild Stash", StringComparison.OrdinalIgnoreCase))
+                    {
                         return l.Label;
-                    if (path.Contains("GuildStash", StringComparison.OrdinalIgnoreCase))
-                        return l.Label;
+                    }
                 }
                 else
                 {
-                    if (txt.Equals("Stash", StringComparison.OrdinalIgnoreCase) || (txt.Contains("Stash", StringComparison.OrdinalIgnoreCase) && !txt.Contains("Guild", StringComparison.OrdinalIgnoreCase)))
+                    var isGuildLabel = txt.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                                       txtNoTags.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                                       path.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                                       renderName.Contains("Guild", StringComparison.OrdinalIgnoreCase);
+
+                    if (!isGuildLabel && (txt.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                                          txtNoTags.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                                          path.Contains("Stash", StringComparison.OrdinalIgnoreCase)))
+                    {
                         return l.Label;
-                    if (path.Contains("Stash", StringComparison.OrdinalIgnoreCase) && !path.Contains("Guild", StringComparison.OrdinalIgnoreCase))
-                        return l.Label;
+                    }
+                }
+            }
+
+            // 2. Dự phòng: Nếu không tìm thấy loại yêu cầu, click bất kỳ rương nào có nhãn Stash trên màn hình
+            foreach (var l in labels)
+            {
+                if (l == null || !l.IsVisible || l.Label == null || !l.Label.IsValid) continue;
+                var txt = (l.Label.Text ?? string.Empty).Trim();
+                var txtNoTags = (l.Label.TextNoTags ?? string.Empty).Trim();
+                var path = l.ItemOnGround?.Path ?? string.Empty;
+
+                if (txt.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                    txtNoTags.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                    path.Contains("Stash", StringComparison.OrdinalIgnoreCase))
+                {
+                    return l.Label;
                 }
             }
         }
@@ -545,26 +578,49 @@ public class StashDepositService
     {
         try
         {
-            var entities = _gc.EntityListWrapper?.Entities ?? _gc.Entities;
+            var entities = _gc.EntityListWrapper?.OnlyValidEntities ?? _gc.EntityListWrapper?.Entities ?? _gc.Entities;
             if (entities == null) return null;
 
+            if (isGuild)
+            {
+                foreach (var e in entities)
+                {
+                    if (e == null || !e.IsValid) continue;
+                    var path = e.Path ?? string.Empty;
+                    var renderName = e.RenderName ?? string.Empty;
+
+                    if (e.Type == EntityType.GuildStash ||
+                        path.Contains("GuildStash", StringComparison.OrdinalIgnoreCase) || 
+                        renderName.Contains("Guild Stash", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return e;
+                    }
+                }
+            }
+            else
+            {
+                foreach (var e in entities)
+                {
+                    if (e == null || !e.IsValid) continue;
+                    var path = e.Path ?? string.Empty;
+                    var renderName = e.RenderName ?? string.Empty;
+
+                    if ((e.Type == EntityType.Stash || path.Contains("MiscellaneousObjects/Stash", StringComparison.OrdinalIgnoreCase) || path.EndsWith("/Stash", StringComparison.OrdinalIgnoreCase) || renderName.Equals("Stash", StringComparison.OrdinalIgnoreCase)) &&
+                        !path.Contains("Guild", StringComparison.OrdinalIgnoreCase) && !renderName.Contains("Guild", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return e;
+                    }
+                }
+            }
+
+            // Fallback: Tìm bất kỳ rương nào
             foreach (var e in entities)
             {
                 if (e == null || !e.IsValid) continue;
                 var path = e.Path ?? string.Empty;
-                var renderName = e.RenderName ?? string.Empty;
-
-                if (isGuild)
+                if (e.Type == EntityType.Stash || e.Type == EntityType.GuildStash || path.Contains("Stash", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (path.Contains("GuildStash", StringComparison.OrdinalIgnoreCase) || renderName.Contains("Guild Stash", StringComparison.OrdinalIgnoreCase))
-                        return e;
-                }
-                else
-                {
-                    if ((path.Contains("MiscellaneousObjects/Stash", StringComparison.OrdinalIgnoreCase) || path.EndsWith("/Stash", StringComparison.OrdinalIgnoreCase)) && !path.Contains("Guild", StringComparison.OrdinalIgnoreCase))
-                        return e;
-                    if (renderName.Equals("Stash", StringComparison.OrdinalIgnoreCase))
-                        return e;
+                    return e;
                 }
             }
         }
