@@ -30,18 +30,12 @@ public static class InventorySpaceChecker
                 var inv = holder?.Inventory;
                 if (inv == null) continue;
 
-                // Khớp theo InventSlot MainInventory hoặc kích thước 12x5 / 60 ô
-                if (inv.InventSlot == InventorySlotE.MainInventory ||
-                    (inv.Columns == InvColumns && inv.Rows == InvRows) ||
-                    inv.TotalBoxes == TotalSlots)
+                // Khớp theo kích thước 12x5 của hành trang chính
+                if (inv.Columns == InvColumns && inv.Rows == InvRows)
                 {
                     return inv;
                 }
             }
-
-            // Fallback: Lấy inventory có 60 ô hoặc phần tử đầu tiên
-            var sixtyBoxInv = playerInvs.FirstOrDefault(h => h?.Inventory?.TotalBoxes == TotalSlots)?.Inventory;
-            if (sixtyBoxInv != null) return sixtyBoxInv;
 
             return playerInvs[0]?.Inventory;
         }
