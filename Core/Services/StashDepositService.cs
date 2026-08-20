@@ -324,15 +324,13 @@ public class StashDepositService
         }
     }
 
-    private List<(int Col, int Row, Vector2 Pos, NormalInventoryItem? Item)> GetPlayerInventoryItemsWithPositions()
+    private List<(int Col, int Row, Vector2 Pos, ServerInventory.InventSlotItem? Item)> GetPlayerInventoryItemsWithPositions()
     {
-        var result = new List<(int, int, Vector2, NormalInventoryItem?)>();
+        var result = new List<(int, int, Vector2, ServerInventory.InventSlotItem?)>();
         try
         {
             var ingameUi = _gc.IngameState?.IngameUi;
-            if (ingameUi == null) return result;
-
-            var invPanel = ingameUi.InventoryPanel;
+            var invPanel = ingameUi?.InventoryPanel;
             var invElement = invPanel?[ExileCore.Shared.Enums.InventoryIndex.PlayerInventory];
 
             // Tọa độ bounding box của lưới hành trang
@@ -354,15 +352,19 @@ public class StashDepositService
             var cellW = invRect.Width / 12f;
             var cellH = invRect.Height / 5f;
 
-            var items = invElement?.VisibleInventoryItems?.Where(i => i != null && i.IsValid).ToList() ?? new List<NormalInventoryItem>();
-
-            foreach (var invItem in items)
+            // 1. Đọc trực tiếp từ ServerInventory (Chính xác 100% tọa độ và item)
+            var slotItems = InventorySpaceChecker.GetPlayerInventorySlotItems(_gc);
+            if (slotItems.Count > 0)
             {
-                var col = invItem.InventPosX;
-                var row = invItem.InventPosY;
-                if (col >= 0 && col < 12 && row >= 0 && row < 5)
+                foreach (var sItem in slotItems)
                 {
-                    var itemRect = invItem.GetClientRect();
+                    if (sItem == null) continue;
+                    var col = sItem.PosX;
+                    var row = sItem.PosY;
+                    var sx = Math.Max(1, sItem.SizeX);
+                    var sy = Math.Max(1, sItem.SizeY);
+
+                    var itemRect = sItem.GetClientRect();
                     Vector2 clickPos;
                     if (itemRect.Width > 10 && itemRect.Height > 10)
                     {
@@ -370,9 +372,23 @@ public class StashDepositService
                     }
                     else
                     {
-                        clickPos = new Vector2(invRect.Left + (col + 0.5f) * cellW, invRect.Top + (row + 0.5f) * cellH);
+                        clickPos = new Vector2(invRect.Left + (col + sx * 0.5f) * cellW, invRect.Top + (row + sy * 0.5f) * cellH);
                     }
-                    result.Add((col, row, clickPos, invItem));
+
+                    result.Add((col, row, clickPos, sItem));
+                }
+                return result;
+            }
+
+            // 2. Dự phòng qua VisibleInventoryItems
+            var items = invElement?.VisibleInventoryItems?.Where(i => i != null && i.IsValid).ToList() ?? new List<NormalInventoryItem>();
+            foreach (var invItem in items)
+            {
+                var itemRect = invItem.GetClientRect();
+                if (itemRect.Width > 10 && itemRect.Height > 10)
+                {
+                    var clickPos = new Vector2(itemRect.Center.X, itemRect.Center.Y);
+                    result.Add((0, 0, clickPos, null));
                 }
             }
         }
