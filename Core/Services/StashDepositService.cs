@@ -489,6 +489,204 @@ public class StashDepositService
         return null;
     }
 
+    /// <summary>
+    /// Nhập filter vào ô Search Box (Ảnh 1) và kích hoạt nút rút/cất đồ (Ảnh 2)
+    /// </summary>
+    public IEnumerator ExecuteWithdrawByFilterCoroutine(string? customFilter = null)
+    {
+        if (IsDepositing) yield break;
+
+        IsDepositing = true;
+        RequestStop = false;
+
+        var filter = string.IsNullOrWhiteSpace(customFilter)
+            ? (_settings.StashSearchFilter?.Value ?? "\"!s of co|es of d\" \"y: r\" pte")
+            : customFilter;
+
+        LogHelper.Warn($">>> [LẤY ĐỒ TỪ RƯƠNG] BẮT ĐẦU VỚI FILTER: {filter} <<<");
+
+        try
+        {
+            var isGuildStash = _settings.StashType?.Value?.Contains("Guild", StringComparison.OrdinalIgnoreCase) == true;
+            var targetStashName = isGuildStash ? "GUILD STASH" : "STASH";
+
+            // 1. Kiểm tra / Mở rương nếu chưa mở
+            var stashOpened = IsStashOpen(isGuildStash);
+            if (!stashOpened)
+            {
+                var windowRect = _gc.Window.GetWindowRectangle();
+                var label = FindStashLabelOnGround(isGuildStash);
+                if (label != null && label.IsValid)
+                {
+                    var rect = label.GetClientRect();
+                    var clickPos = new Vector2(windowRect.X + rect.Center.X, windowRect.Y + rect.Center.Y);
+                    MouseHelper.LeftClickAt(clickPos, 80, 50);
+                }
+                else
+                {
+                    var stashEntity = FindStashEntity(isGuildStash);
+                    if (stashEntity != null && stashEntity.IsValid)
+                    {
+                        var sharpDxPos = _gc.IngameState.Camera.WorldToScreen(stashEntity.Pos);
+                        var screenPos = new Vector2(windowRect.X + sharpDxPos.X, windowRect.Y + sharpDxPos.Y);
+                        MouseHelper.LeftClickAt(screenPos, 80, 50);
+                    }
+                }
+
+                for (var w = 0; w < 30; w++)
+                {
+                    yield return new WaitTime(100);
+                    if (IsStashOpen(isGuildStash))
+                    {
+                        stashOpened = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!IsStashOpen(isGuildStash))
+            {
+                LogHelper.Warn("[CẢNH BÁO] Không mở được rương để nhập filter.");
+                yield break;
+            }
+
+            yield return new WaitTime(300);
+
+            // 2. Nhập Filter vào ô Tìm Kiếm Highlight Items (Ảnh 1)
+            LogHelper.Info($"[ẢNH 1: NHẬP FILTER] Đang nhập chuỗi: {filter}");
+            ApplyFilterToStashSearch(filter);
+            yield return new WaitTime(400);
+
+            // 3. Kích hoạt Nút Rút / Cất đồ (Ảnh 2)
+            LogHelper.Info("[ẢNH 2: BẤM NÚT] Đang bấm nút hành động rương...");
+            ClickAffinityDepositButton();
+            yield return new WaitTime(300);
+
+            // 4. Nếu bật tự động rút các món Highlight: Ctrl+Click từng món highlight trong tab vào hành trang
+            if (_settings.AutoWithdrawHighlightedItems?.Value == true)
+            {
+                yield return WithdrawHighlightedItemsRoutine(isGuildStash);
+            }
+
+            LogHelper.Info(">>> [HOÀN TẤT] ĐÃ THỰC HIỆN XONG LỆNH LẤY ĐỒ THEO FILTER! <<<");
+        }
+        finally
+        {
+            IsDepositing = false;
+        }
+    }
+
+    public static void SetClipboardText(string text)
+    {
+        try
+        {
+            var thread = new Thread(() =>
+            {
+                try { Clipboard.SetText(text); } catch { }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join(500);
+        }
+        catch { }
+    }
+
+    public void ApplyFilterToStashSearch(string filterText)
+    {
+        try
+        {
+            SetClipboardText(filterText);
+            Thread.Sleep(50);
+
+            // Bấm Ctrl + F để focus vào ô Search Box của Stash
+            Input.KeyDown(Keys.LControlKey);
+            Thread.Sleep(20);
+            Input.KeyDown(Keys.F);
+            Thread.Sleep(30);
+            Input.KeyUp(Keys.F);
+            Thread.Sleep(20);
+            Input.KeyUp(Keys.LControlKey);
+            Thread.Sleep(100);
+
+            // Bấm Ctrl + A để bôi đen text cũ nếu có
+            Input.KeyDown(Keys.LControlKey);
+            Thread.Sleep(20);
+            Input.KeyDown(Keys.A);
+            Thread.Sleep(30);
+            Input.KeyUp(Keys.A);
+            Thread.Sleep(20);
+            Input.KeyUp(Keys.LControlKey);
+            Thread.Sleep(50);
+
+            // Bấm Ctrl + V để dán filter vào
+            Input.KeyDown(Keys.LControlKey);
+            Thread.Sleep(20);
+            Input.KeyDown(Keys.V);
+            Thread.Sleep(30);
+            Input.KeyUp(Keys.V);
+            Thread.Sleep(20);
+            Input.KeyUp(Keys.LControlKey);
+            Thread.Sleep(100);
+
+            // Bấm Enter để hoàn tất tìm kiếm
+            Input.KeyDown(Keys.Enter);
+            Thread.Sleep(30);
+            Input.KeyUp(Keys.Enter);
+            Thread.Sleep(100);
+        }
+        catch (Exception ex)
+        {
+            LogHelper.Error($"ApplyFilterToStashSearch error: {ex.Message}");
+        }
+    }
+
+    private IEnumerator WithdrawHighlightedItemsRoutine(bool isGuildStash)
+    {
+        var ingameUi = _gc.IngameState?.IngameUi ?? _gc.Game?.IngameState?.IngameUi;
+        if (ingameUi == null) yield break;
+
+        var stashEl = (ingameUi.GuildStashElement?.IsVisible == true ? (ExileCore.PoEMemory.Elements.StashElement)ingameUi.GuildStashElement : null)
+            ?? ingameUi.StashElement;
+        if (stashEl == null) yield break;
+
+        var visibleItems = stashEl.VisibleStash?.VisibleInventoryItems;
+        if (visibleItems == null || visibleItems.Count == 0) yield break;
+
+        var windowRect = _gc.Window.GetWindowRectangle();
+        var highlightedItems = new List<Vector2>();
+
+        foreach (var item in visibleItems)
+        {
+            if (item == null || !item.IsValid) continue;
+            if (item.IsHighlighted)
+            {
+                var rect = item.GetClientRect();
+                if (rect.Width > 5 && rect.Height > 5)
+                {
+                    highlightedItems.Add(new Vector2(windowRect.X + rect.Center.X, windowRect.Y + rect.Center.Y));
+                }
+            }
+        }
+
+        if (highlightedItems.Count > 0)
+        {
+            LogHelper.Info($"[RÚT ĐỒ HIGHLIGHT] Tìm thấy {highlightedItems.Count} món khớp filter trong Tab. Đang rút...");
+            foreach (var pos in highlightedItems)
+            {
+                if (RequestStop || !IsStashOpen(isGuildStash)) yield break;
+                var freeSlots = InventorySpaceChecker.GetFreeSlotsCount(_gc);
+                if (freeSlots <= 0)
+                {
+                    LogHelper.Warn("[HÀNH TRANG ĐẦY] Đã đầy hành trang, dừng rút đồ.");
+                    break;
+                }
+
+                MouseHelper.CtrlShiftLeftClickAt(pos, 50, 40);
+                yield return new WaitTime(isGuildStash ? 350 : 120);
+            }
+        }
+    }
+
     private static void FindElementsRecursive(Element? root, List<Element> result, int depth)
     {
         if (root == null || !root.IsValid || depth > 8) return;

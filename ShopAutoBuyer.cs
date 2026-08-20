@@ -78,6 +78,16 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             };
         }
 
+        // Gan su kien cho nut Rut do theo filter trong menu (Anh 1 & Anh 2)
+        if (Settings?.RunWithdrawByFilterButton != null)
+        {
+            Settings.RunWithdrawByFilterButton.OnPressed = () =>
+            {
+                LogHelper.Warn(">>> [WITHDRAW FILTER] BAN DA BAM NUT RUT DO THEO FILTER TRONG MENU! <<<");
+                StartWithdrawByFilterCoroutine();
+            };
+        }
+
         // Gan su kien cho nut Khoi chay Web Trade
         if (Settings?.ToggleWebTradeButton != null)
         {
@@ -134,6 +144,13 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             {
                 LogHelper.Warn(">>> [TEST MODE] BAN DA BAM PHIM TAT F6 DE TEST VE HIDEOUT & CAT DO! <<<");
                 StartDepositCoroutine();
+            }
+
+            // Phim tat RUT DO THEO FILTER (Mac dinh F8 - Anh 1 & Anh 2)
+            if (Settings?.WithdrawByFilterHotkey != null && Settings.WithdrawByFilterHotkey.PressedOnce())
+            {
+                LogHelper.Warn(">>> [WITHDRAW FILTER] BAN DA BAM PHIM TAT F8 DE RUT DO THEO FILTER! <<<");
+                StartWithdrawByFilterCoroutine();
             }
 
             // 2. Dong bo voi Toggle PauseAutoBuyer trong Menu
@@ -466,6 +483,35 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 _stashDepositService.ExecuteDepositCoroutine(),
                 this,
                 "ShopAutoBuyer_DepositRoutine"
+            );
+            ExileCore.Core.ParallelRunner.Run(_currentCoroutine);
+        }
+    }
+
+    public void StartWithdrawByFilterCoroutine(string? customFilter = null)
+    {
+        if (_isPausedByUser) return;
+        if (_stashDepositService != null && _stashDepositService.IsDepositing) return;
+
+        // Dừng tiến trình mua hàng nếu đang chạy để ưu tiên rút đồ
+        if (_purchaseExecutor != null)
+        {
+            _purchaseExecutor.RequestStop = true;
+            _purchaseExecutor.IsRunning = false;
+        }
+
+        if (_stashDepositService == null && GameController != null && Settings != null)
+        {
+            _stashDepositService = new StashDepositService(GameController, Settings);
+        }
+
+        if (_stashDepositService != null)
+        {
+            _stashDepositService.RequestStop = false;
+            _currentCoroutine = new Coroutine(
+                _stashDepositService.ExecuteWithdrawByFilterCoroutine(customFilter),
+                this,
+                "ShopAutoBuyer_WithdrawByFilterRoutine"
             );
             ExileCore.Core.ParallelRunner.Run(_currentCoroutine);
         }

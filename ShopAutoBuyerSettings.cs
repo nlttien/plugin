@@ -87,6 +87,21 @@ public class ShopAutoBuyerSettings : ISettings
     public ToggleNode AutoInteractHideoutNpc { get; set; } = new ToggleNode(true);
 
     // ==========================================
+    // RÚT ĐỒ / LẤY ĐỒ TỰ ĐỘNG THEO FILTER (ẢNH 1 & ẢNH 2)
+    // ==========================================
+    [Menu("Chuoi Filter Nhap Vao Ruong (Anh 1)")]
+    public TextNode StashSearchFilter { get; set; } = new TextNode("\"!s of co|es of d\" \"y: r\" pte");
+
+    [Menu("Phim Tat Chay Rut Do Theo Filter (Mac dinh F8)")]
+    public HotkeyNode WithdrawByFilterHotkey { get; set; } = new HotkeyNode(Keys.F8);
+
+    [Menu("Nut Chay Rut Do Theo Filter (Trong Menu)")]
+    public ButtonNode RunWithdrawByFilterButton { get; set; } = new ButtonNode();
+
+    [Menu("Tu Dong Ctrl-Click Rut Cac Mon Highlight")]
+    public ToggleNode AutoWithdrawHighlightedItems { get; set; } = new ToggleNode(true);
+
+    // ==========================================
     // CAI DAT CHUNG
     // ==========================================
     [Menu("Phien Ban Game (Game Version)")]
