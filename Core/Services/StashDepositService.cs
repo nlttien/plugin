@@ -658,13 +658,10 @@ public class StashDepositService
         foreach (var item in visibleItems)
         {
             if (item == null || !item.IsValid) continue;
-            if (item.IsHighlighted)
+            var rect = item.GetClientRect();
+            if (rect.Width > 5 && rect.Height > 5)
             {
-                var rect = item.GetClientRect();
-                if (rect.Width > 5 && rect.Height > 5)
-                {
-                    highlightedItems.Add(new Vector2(windowRect.X + rect.Center.X, windowRect.Y + rect.Center.Y));
-                }
+                highlightedItems.Add(new Vector2(windowRect.X + rect.Center.X, windowRect.Y + rect.Center.Y));
             }
         }
 
