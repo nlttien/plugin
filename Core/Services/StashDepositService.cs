@@ -54,12 +54,6 @@ public class StashDepositService
             // BƯỚC 1: Báo cho Web Trade tạm dừng chờ cất đồ
             NotifyBridge("DEPOSITING");
 
-            // Đóng các cửa sổ đang mở (Shop / Menu) bằng phím Space
-            Input.KeyDown(Keys.Space);
-            Thread.Sleep(40);
-            Input.KeyUp(Keys.Space);
-            yield return new WaitTime(200);
-
             // BƯỚC 2: BIẾN VỀ HIDEOUT NẾU ĐANG Ở NHÀ NGƯỜI BÁN
             var isGuildStash = _settings.StashType?.Value?.Contains("Guild", StringComparison.OrdinalIgnoreCase) == true;
             var targetStashName = isGuildStash ? "GUILD STASH" : "STASH";
@@ -114,55 +108,63 @@ public class StashDepositService
             }
 
             // BƯỚC 3: TÌM VÀ MỞ RƯƠNG (STASH HOẶC GUILD STASH)
-            LogHelper.Info($"[BƯỚC 2: TÌM RƯƠNG] Đang tìm rương {targetStashName} trong Hideout...");
-
-            var stashOpened = false;
-            for (var openAttempt = 0; openAttempt < 5; openAttempt++)
+            var stashOpened = IsStashOpen(isGuildStash);
+            if (stashOpened)
             {
-                if (RequestStop) yield break;
+                LogHelper.Info($"[BƯỚC 3: RƯƠNG ĐÃ MỞ] Cửa sổ rương {targetStashName} đã mở sẵn! Bắt đầu cất đồ...");
+            }
+            else
+            {
+                LogHelper.Info($"[BƯỚC 2: TÌM RƯƠNG] Đang tìm và mở rương {targetStashName} trong Hideout...");
+                var windowRect = _gc.Window.GetWindowRectangle();
 
-                // 1. Thử click trực tiếp vào nhãn chữ trên mặt đất (STASH / GUILD STASH)
-                var label = FindStashLabelOnGround(isGuildStash);
-                var clicked = false;
-                if (label != null && label.IsValid)
+                for (var openAttempt = 0; openAttempt < 5; openAttempt++)
                 {
-                    var rect = label.GetClientRect();
-                    if (rect.Width > 5 && rect.Height > 5)
-                    {
-                        var clickPos = new Vector2(rect.Center.X, rect.Center.Y);
-                        LogHelper.Info($"[CLICK NHÃN RƯƠNG] Bấm vào nhãn {targetStashName} tại: ({clickPos.X:F0}, {clickPos.Y:F0})");
-                        MouseHelper.LeftClickAt(clickPos, 80, 50);
-                        clicked = true;
-                    }
-                }
+                    if (RequestStop) yield break;
 
-                if (!clicked)
-                {
-                    // 2. Thử tìm Entity rương trong thế giới 3D và chiếu tọa độ lên màn hình (WorldToScreen)
-                    var stashEntity = FindStashEntity(isGuildStash);
-                    if (stashEntity != null && stashEntity.IsValid)
+                    // 1. Thử click trực tiếp vào nhãn chữ trên mặt đất (STASH / GUILD STASH)
+                    var label = FindStashLabelOnGround(isGuildStash);
+                    var clicked = false;
+                    if (label != null && label.IsValid)
                     {
-                        var sharpDxPos = _gc.IngameState.Camera.WorldToScreen(stashEntity.Pos);
-                        var screenPos = new Vector2(sharpDxPos.X, sharpDxPos.Y);
-                        LogHelper.Info($"[CLICK ENTITY RƯƠNG] Bấm vào vị trí rương {targetStashName} tại: ({screenPos.X:F0}, {screenPos.Y:F0})");
-                        MouseHelper.LeftClickAt(screenPos, 80, 50);
-                        clicked = true;
+                        var rect = label.GetClientRect();
+                        if (rect.Width > 5 && rect.Height > 5)
+                        {
+                            var clickPos = new Vector2(windowRect.X + rect.Center.X, windowRect.Y + rect.Center.Y);
+                            LogHelper.Info($"[CLICK NHÃN RƯƠNG] Bấm vào nhãn {targetStashName} tại: ({clickPos.X:F0}, {clickPos.Y:F0})");
+                            MouseHelper.LeftClickAt(clickPos, 80, 50);
+                            clicked = true;
+                        }
                     }
-                }
 
-                // Chờ nhân vật chạy lại gần và mở cửa sổ rương (Tối đa 3.5 giây)
-                for (var w = 0; w < 35; w++)
-                {
-                    yield return new WaitTime(100);
-                    if (IsStashOpen(isGuildStash))
+                    if (!clicked)
                     {
-                        stashOpened = true;
-                        break;
+                        // 2. Thử tìm Entity rương trong thế giới 3D và chiếu tọa độ lên màn hình (WorldToScreen)
+                        var stashEntity = FindStashEntity(isGuildStash);
+                        if (stashEntity != null && stashEntity.IsValid)
+                        {
+                            var sharpDxPos = _gc.IngameState.Camera.WorldToScreen(stashEntity.Pos);
+                            var screenPos = new Vector2(windowRect.X + sharpDxPos.X, windowRect.Y + sharpDxPos.Y);
+                            LogHelper.Info($"[CLICK ENTITY RƯƠNG] Bấm vào vị trí rương {targetStashName} tại: ({screenPos.X:F0}, {screenPos.Y:F0})");
+                            MouseHelper.LeftClickAt(screenPos, 80, 50);
+                            clicked = true;
+                        }
                     }
-                }
 
-                if (stashOpened) break;
-                yield return new WaitTime(500);
+                    // Chờ nhân vật chạy lại gần và mở cửa sổ rương (Tối đa 3.5 giây)
+                    for (var w = 0; w < 35; w++)
+                    {
+                        yield return new WaitTime(100);
+                        if (IsStashOpen(isGuildStash))
+                        {
+                            stashOpened = true;
+                            break;
+                        }
+                    }
+
+                    if (stashOpened) break;
+                    yield return new WaitTime(500);
+                }
             }
 
             if (!stashOpened)
@@ -428,7 +430,8 @@ public class StashDepositService
                 var rect = btnElement.GetClientRect();
                 if (rect.Width > 0 && rect.Height > 0)
                 {
-                    var pos = new Vector2(rect.Center.X, rect.Center.Y);
+                    var windowRect = _gc.Window.GetWindowRectangle();
+                    var pos = new Vector2(windowRect.X + rect.Center.X, windowRect.Y + rect.Center.Y);
                     MouseHelper.LeftClickAt(pos, 60, 50);
                     LogHelper.Info($"[Affinity Button - RAM] Đã bấm nút cất nhanh tại: ({pos.X:F0}, {pos.Y:F0})");
                     return;
