@@ -282,9 +282,8 @@ public class StashDepositService
         var ingameUi = _gc.IngameState?.IngameUi ?? _gc.Game?.IngameState?.IngameUi;
         if (ingameUi == null) yield break;
 
-        var stashEl = (isGuildStash && ingameUi.GuildStashElement?.IsVisible == true)
-            ? (ExileCore.PoEMemory.Elements.StashElement)ingameUi.GuildStashElement
-            : ingameUi.StashElement;
+        var stashEl = (ingameUi.GuildStashElement?.IsVisible == true ? (ExileCore.PoEMemory.Elements.StashElement)ingameUi.GuildStashElement : null)
+            ?? ingameUi.StashElement;
 
         if (stashEl != null)
         {
@@ -500,19 +499,13 @@ public class StashDepositService
         }
     }
 
-    public bool IsStashOpen(bool isGuild)
+    public bool IsStashOpen(bool isGuild = false)
     {
         try
         {
             var ingameUi = _gc.IngameState?.IngameUi;
             if (ingameUi == null) return false;
-
-            if (isGuild)
-            {
-                return ingameUi.GuildStashElement?.IsVisible == true || ingameUi.StashElement?.IsVisible == true;
-            }
-
-            return ingameUi.StashElement?.IsVisible == true;
+            return ingameUi.GuildStashElement?.IsVisible == true || ingameUi.StashElement?.IsVisible == true;
         }
         catch
         {
