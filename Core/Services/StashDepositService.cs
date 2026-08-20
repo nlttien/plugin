@@ -179,12 +179,9 @@ public class StashDepositService
 
             yield return new WaitTime(300);
 
-            // BƯỚC 5: ĐÓNG CỬA SỔ RƯƠNG
-            LogHelper.Info("[BƯỚC 5: ĐÓNG RƯƠNG] Hoàn tất cất đồ vào rương. Đóng rương và sẵn sàng tiếp tục săn đồ...");
-            Input.KeyDown(Keys.Space);
-            Thread.Sleep(40);
-            Input.KeyUp(Keys.Space);
-            yield return new WaitTime(300);
+            // BƯỚC 5: HOÀN TẤT TIẾN TRÌNH CẤT ĐỒ
+            LogHelper.Info("[HOÀN TẤT] Quá trình cất đồ hoàn tất. Sẵn sàng tiếp tục!");
+            yield return new WaitTime(500);
 
             // BƯỚC 6: Báo hoàn tất để Web Trade tiếp tục hoạt động
             NotifyBridge("COMPLETED");
@@ -205,7 +202,7 @@ public class StashDepositService
         {
             // Chuyển trực tiếp sang Tab mục tiêu (ví dụ: 'boss')
             yield return SwitchToTabNamed(targetTabName, isGuildStash);
-            yield return new WaitTime(300);
+            yield return new WaitTime(400);
         }
         else
         {
@@ -234,26 +231,26 @@ public class StashDepositService
             var itemsToDeposit = GetPlayerInventoryItemsWithPositions();
             if (itemsToDeposit.Count == 0)
             {
-                LogHelper.Info("[HOÀN TẤT] Toàn bộ vật phẩm đã vào rương thành công!");
+                LogHelper.Info("[HOÀN TẤT] Không còn vật phẩm nào trong hành trang cần cất!");
                 break;
             }
 
-            LogHelper.Info($"[CTRL+SHIFT+CLICK] Đang cất {itemsToDeposit.Count} món vào Tab '{targetTabName}'...");
+            LogHelper.Info($"[CẤT ĐỒ] Đang cất {itemsToDeposit.Count} món vào rương (Tab: '{targetTabName}')...");
             foreach (var itemInfo in itemsToDeposit)
             {
                 if (RequestStop || !IsStashOpen(isGuildStash)) yield break;
 
-                // Ctrl + Shift + Left Click vào ô đồ
-                MouseHelper.CtrlShiftLeftClickAt(itemInfo.Pos, 35, 35);
-                yield return new WaitTime(60);
+                // Ctrl + Shift + Left Click vào ô đồ với toạ độ màn hình tuyệt đối
+                MouseHelper.CtrlShiftLeftClickAt(itemInfo.Pos, 60, 45);
+                yield return new WaitTime(isGuildStash ? 350 : 120);
             }
 
-            yield return new WaitTime(200);
+            yield return new WaitTime(400);
 
             var afterItems = GetPlayerInventoryItemsWithPositions();
             if (afterItems.Count == 0)
             {
-                LogHelper.Info("[HOÀN TẤT] Toàn bộ đồ đã được cất vào Stash!");
+                LogHelper.Info("[HOÀN TẤT] Toàn bộ đồ đã được cất vào Stash thành công!");
                 break;
             }
 
@@ -287,6 +284,8 @@ public class StashDepositService
 
         if (stashEl != null)
         {
+            var windowRect = _gc.Window.GetWindowRectangle();
+
             // 1. Thử click trực tiếp vào nút Tab có chữ targetTabName (ví dụ 'boss')
             var tabBtn = FindElementWithText(stashEl, targetTabName);
             if (tabBtn != null && tabBtn.IsValid && tabBtn.IsVisible)
@@ -294,8 +293,9 @@ public class StashDepositService
                 var rect = tabBtn.GetClientRect();
                 if (rect.Width > 0 && rect.Height > 0)
                 {
-                    MouseHelper.LeftClickAt(new Vector2(rect.Center.X, rect.Center.Y), 50, 30);
-                    LogHelper.Info($"[CHỌN TAB] Đã click nút Tab '{targetTabName}' thành công!");
+                    var tabScreenPos = new Vector2(windowRect.X + rect.Center.X, windowRect.Y + rect.Center.Y);
+                    MouseHelper.LeftClickAt(tabScreenPos, 80, 50);
+                    LogHelper.Info($"[CHỌN TAB] Đã click nút Tab '{targetTabName}' tại ({tabScreenPos.X:F0}, {tabScreenPos.Y:F0})!");
                     yield return new WaitTime(400);
                     yield break;
                 }
@@ -342,6 +342,7 @@ public class StashDepositService
         var result = new List<(int, int, Vector2, ServerInventory.InventSlotItem?)>();
         try
         {
+            var windowRect = _gc.Window.GetWindowRectangle();
             var ingameUi = _gc.IngameState?.IngameUi;
             var invPanel = ingameUi?.InventoryPanel;
             var invElement = invPanel?[ExileCore.Shared.Enums.InventoryIndex.PlayerInventory];
@@ -356,10 +357,10 @@ public class StashDepositService
             {
                 // Fallback theo tỉ lệ độ phân giải màn hình
                 var realWin = _gc.Window.GetWindowRectangleReal();
-                if (realWin.Width <= 0 || realWin.Height <= 0) realWin = _gc.Window.GetWindowRectangle();
+                if (realWin.Width <= 0 || realWin.Height <= 0) realWin = windowRect;
                 var scaleX = realWin.Width / 1920f;
                 var scaleY = realWin.Height / 1080f;
-                invRect = new RectangleF(realWin.Left + 1295 * scaleX, realWin.Top + 615 * scaleY, 570 * scaleX, 240 * scaleY);
+                invRect = new RectangleF(1295 * scaleX, 615 * scaleY, 570 * scaleX, 240 * scaleY);
             }
 
             var cellW = invRect.Width / 12f;
@@ -367,7 +368,7 @@ public class StashDepositService
 
             // 1. Đọc trực tiếp từ ServerInventory (Chính xác 100% tọa độ và item)
             var slotItems = InventorySpaceChecker.GetPlayerInventorySlotItems(_gc);
-            if (slotItems.Count > 0)
+            if (slotItems != null && slotItems.Count > 0)
             {
                 foreach (var sItem in slotItems)
                 {
@@ -378,17 +379,17 @@ public class StashDepositService
                     var sy = Math.Max(1, sItem.SizeY);
 
                     var itemRect = sItem.GetClientRect();
-                    Vector2 clickPos;
-                    if (itemRect.Width > 10 && itemRect.Height > 10)
+                    Vector2 screenPos;
+                    if (itemRect.Width > 5 && itemRect.Height > 5)
                     {
-                        clickPos = new Vector2(itemRect.Center.X, itemRect.Center.Y);
+                        screenPos = new Vector2(windowRect.X + itemRect.Center.X, windowRect.Y + itemRect.Center.Y);
                     }
                     else
                     {
-                        clickPos = new Vector2(invRect.Left + (col + sx * 0.5f) * cellW, invRect.Top + (row + sy * 0.5f) * cellH);
+                        screenPos = new Vector2(windowRect.X + invRect.Left + (col + sx * 0.5f) * cellW, windowRect.Y + invRect.Top + (row + sy * 0.5f) * cellH);
                     }
 
-                    result.Add((col, row, clickPos, sItem));
+                    result.Add((col, row, screenPos, sItem));
                 }
                 return result;
             }
@@ -398,10 +399,10 @@ public class StashDepositService
             foreach (var invItem in items)
             {
                 var itemRect = invItem.GetClientRect();
-                if (itemRect.Width > 10 && itemRect.Height > 10)
+                if (itemRect.Width > 5 && itemRect.Height > 5)
                 {
-                    var clickPos = new Vector2(itemRect.Center.X, itemRect.Center.Y);
-                    result.Add((0, 0, clickPos, null));
+                    var screenPos = new Vector2(windowRect.X + itemRect.Center.X, windowRect.Y + itemRect.Center.Y);
+                    result.Add((0, 0, screenPos, null));
                 }
             }
         }
