@@ -111,7 +111,7 @@ public class PurchaseExecutor
             {
                 var activeRules = _settings.GetActiveRules();
 
-                // SINGLE-PASS INSTANT BUY với cơ chế RETRY CHUẨN XÁC (Tránh click dồn dập gây lỗi server báo thiếu currency)
+                // SINGLE-PASS INSTANT BUY với cơ chế RETRY CHUẨN XÁC (Mỗi lần thử đều di chuột đọc Tooltip và kiểm tra giá chuẩn 100%)
                 foreach (var item in candidateItems)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
@@ -120,16 +120,17 @@ public class PurchaseExecutor
                     if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height)) break;
 
                     var clickTarget = new Vector2(item.ScreenRect.Center.X, item.ScreenRect.Center.Y + 4);
-                    MouseHelper.FastDirectMove(clickTarget);
-                    yield return new WaitTime(25);
-
                     var boughtSuccessfully = false;
 
-                    for (var attempt = 1; attempt <= 2; attempt++)
+                    for (var attempt = 1; attempt <= 3; attempt++)
                     {
                         if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                        // 1. CẬP NHẬT & TÁI KIỂM TRA GIÁ TRƯỚC KHI MUA
+                        // 1. DI CHUỘT VÀO ITEM ĐỂ HIỆN TOOLTIP Ở MỌI LẦN THỬ
+                        MouseHelper.FastDirectMove(clickTarget);
+                        yield return new WaitTime(25);
+
+                        // 2. CẬP NHẬT & TÁI KIỂM TRA GIÁ TRƯỚC KHI CLICK
                         UpdateItemFromLiveHover(_gc, item);
 
                         var canBuy = _settings.IsTimelessMode()
@@ -144,11 +145,11 @@ public class PurchaseExecutor
 
                         if (_settings.IsTimelessMode() && IsHoveringNonJewelEquipment(_gc)) break;
 
-                        // 2. Ctrl+Click mua
+                        // 3. Ctrl+Click mua
                         MouseHelper.FastCtrlLeftClickAt(clickTarget, 0, 20);
                         
-                        // Chờ 180ms để game server xử lý giao dịch tiền và cập nhật kho
-                        yield return new WaitTime(180);
+                        // Chờ 200ms để game server xử lý giao dịch tiền và cập nhật kho
+                        yield return new WaitTime(200);
 
                         if (IsPriceDifferenceModalOpen(_gc))
                         {
@@ -156,9 +157,11 @@ public class PurchaseExecutor
                             yield return new WaitTime(80);
                         }
 
-                        // 3. KIỂM TRA XEM ITEM ĐÃ ĐƯỢC MUA CHƯA
+                        // 4. KIỂM TRA XEM ITEM ĐÃ ĐƯỢC MUA CHƯA (Item rời khỏi shop)
                         var remainingItems = adapter.GetAvailableItems(_gc);
-                        var stillInShop = remainingItems != null && remainingItems.Any(r => r != null && r.InventoryItem?.Address == item.InventoryItem?.Address);
+                        var stillInShop = remainingItems != null && remainingItems.Any(r => r != null && 
+                            (r.InventoryItem?.Address == item.InventoryItem?.Address || 
+                             (r.InventoryItem?.InventPosX == item.InventoryItem?.InventPosX && r.InventoryItem?.InventPosY == item.InventoryItem?.InventPosY)));
 
                         if (!stillInShop)
                         {
@@ -166,10 +169,10 @@ public class PurchaseExecutor
                             break;
                         }
 
-                        if (attempt < 2)
+                        if (attempt < 3)
                         {
-                            LogHelper.Warn($"[THỬ LẠI #{attempt}] Item vẫn còn trong shop (Game lag tiền). Đang kiểm tra lại giá ({item.CostString}) và thử lại...");
-                            yield return new WaitTime(120);
+                            LogHelper.Warn($"[THỬ LẠI #{attempt}] Item vẫn còn trong shop (Game lag tiền / chưa nhận click). Đang di chuột đọc lại giá ({item.CostString}) và mua lại...");
+                            yield return new WaitTime(100);
                         }
                     }
 
