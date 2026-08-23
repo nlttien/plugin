@@ -30,6 +30,25 @@ public static class MouseHelper
         Input.SetCursorPos(new Vector2(centerX + jitterX, centerY + jitterY));
     }
 
+    public static void FastDirectMove(Vector2 target)
+    {
+        Input.SetCursorPos(target);
+    }
+
+    public static void FastCtrlLeftClickAt(Vector2 target, int hoverWaitMs = 15, int holdMs = 25)
+    {
+        Input.SetCursorPos(target);
+        if (hoverWaitMs > 0) Thread.Sleep(hoverWaitMs);
+        Input.KeyDown(Keys.LControlKey);
+        Thread.Sleep(10);
+        Input.LeftDown();
+        Thread.Sleep(holdMs);
+        Input.LeftUp();
+        Thread.Sleep(10);
+        Input.KeyUp(Keys.LControlKey);
+        Thread.Sleep(10);
+    }
+
     /// <summary>
     /// Di chuyển chuột đến vị trí mục tiêu, đợi hover ổn định rồi thực hiện thao tác Ctrl + Click chính xác 100%.
     /// </summary>
