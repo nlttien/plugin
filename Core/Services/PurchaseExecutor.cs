@@ -111,7 +111,10 @@ public class PurchaseExecutor
             {
                 var activeRules = _settings.GetActiveRules();
 
-                // SINGLE-PASS INSTANT BUY với cơ chế TWO-WAY MEMORY STATE MICRO-CHECK (24ms-36ms phản hồi siêu tốc)
+                // Chờ 60ms ban đầu để server PoE đồng bộ dữ liệu tiền trong hòm/túi đồ khi vừa mở shop
+                yield return new WaitTime(60);
+
+                // SINGLE-PASS INSTANT BUY với cơ chế TWO-WAY MEMORY STATE & SMART RETRY BACK-OFF
                 foreach (var item in candidateItems)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
@@ -122,7 +125,7 @@ public class PurchaseExecutor
                     var clickTarget = new Vector2(item.ScreenRect.Center.X, item.ScreenRect.Center.Y + 4);
                     var boughtSuccessfully = false;
 
-                    for (var attempt = 1; attempt <= 3; attempt++)
+                    for (var attempt = 1; attempt <= 4; attempt++)
                     {
                         if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
@@ -198,10 +201,11 @@ public class PurchaseExecutor
                             break; // Mua thành công siêu tốc
                         }
 
-                        if (attempt < 3)
+                        if (attempt < 4)
                         {
-                            LogHelper.Warn($"[THỬ LẠI #{attempt}] Click bị trượt / game chưa nhận. Đang di chuột đọc lại giá ({item.CostString}) và mua lại...");
-                            yield return new WaitTime(30);
+                            var backoffMs = 90 + (attempt * 40); // 130ms, 170ms, 210ms để game server kịp đồng bộ tiền
+                            LogHelper.Warn($"[THỬ LẠI #{attempt}] Game chưa load xong tiền / lag. Đang đợi {backoffMs}ms đồng bộ tiền và mua lại...");
+                            yield return new WaitTime(backoffMs);
                         }
                     }
 
@@ -222,6 +226,59 @@ public class PurchaseExecutor
                         RecentPurchases.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {fullBuyLog}");
                         if (RecentPurchases.Count > 10) RecentPurchases.RemoveAt(RecentPurchases.Count - 1);
                         AppendToHistoryLog($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ĐÃ MUA] {fullBuyLog}");
+                    }
+                }
+
+                // ----------------------------------------------------
+                // FINAL SWEEP PASS: Quét vét lại bộ nhớ shop xem còn sót item nào do lag tiền ban đầu không
+                // ----------------------------------------------------
+                if (adapter.IsShopOpen(_gc) && InventorySpaceChecker.GetFreeSlotsCount(_gc) > 0)
+                {
+                    var sweepItems = adapter.GetAvailableItems(_gc);
+                    var unboughtCandidates = sweepItems?
+                        .Where(i => i != null && (_settings.IsTimelessMode() ? ItemFilterEngine.MatchesTimelessCandidate(i, _settings) : ItemFilterEngine.MatchesAnyRule(i, activeRules)))
+                        .ToList();
+
+                    if (unboughtCandidates != null && unboughtCandidates.Count > 0)
+                    {
+                        LogHelper.Warn($"[FINAL SWEEP] Phát hiện còn {unboughtCandidates.Count} item trong shop chưa mua (do trễ tiền ban đầu). Đang mua vét toàn bộ...");
+                        foreach (var sweepItem in unboughtCandidates)
+                        {
+                            if (!adapter.IsShopOpen(_gc) || RequestStop) break;
+                            if (!InventorySpaceChecker.HasSpaceForItem(_gc, sweepItem.Width, sweepItem.Height)) break;
+
+                            var sweepTarget = new Vector2(sweepItem.ScreenRect.Center.X, sweepItem.ScreenRect.Center.Y + 4);
+                            MouseHelper.FastDirectMove(sweepTarget);
+                            yield return new WaitTime(25);
+                            UpdateItemFromLiveHover(_gc, sweepItem);
+
+                            var canBuySweep = _settings.IsTimelessMode()
+                                ? ItemFilterEngine.MatchesTimelessSettings(sweepItem, _settings)
+                                : ItemFilterEngine.MatchesGeneralSettings(sweepItem, _settings, activeRules);
+
+                            if (canBuySweep)
+                            {
+                                var invBefore = GetPlayerInventoryItemCount(_gc);
+                                MouseHelper.FastCtrlLeftClickAt(sweepTarget, 0, 20);
+                                yield return new WaitTime(180);
+
+                                if (IsPriceDifferenceModalOpen(_gc))
+                                {
+                                    HandlePriceDifferenceModal(_gc, _settings);
+                                    yield return new WaitTime(30);
+                                }
+
+                                var invAfter = GetPlayerInventoryItemCount(_gc);
+                                if (invBefore >= 0 && invAfter > invBefore)
+                                {
+                                    totalPurchasedCount++;
+                                    var sweepLog = $"{sweepItem.DisplayName} | [VÉT] {sweepItem.CostString}";
+                                    LogHelper.Info($"[ĐÃ MUA VÉT THÀNH CÔNG] {sweepLog}");
+                                    purchasedDetails.Add(sweepLog);
+                                    AppendToHistoryLog($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ĐÃ MUA] {sweepLog}");
+                                }
+                            }
+                        }
                     }
                 }
             }
