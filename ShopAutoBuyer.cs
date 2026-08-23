@@ -437,6 +437,20 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 var waitMsg = _isPausedByUser ? "Paused. Press [F7] to resume." : "Waiting for Shop (Faustus, Merchant)... [F7: Pause]";
                 ImGui.TextColored(_isPausedByUser ? new System.Numerics.Vector4(1.0f, 0.3f, 0.3f, 1.0f) : new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), waitMsg);
             }
+
+            // Quick Direct Price Input Box
+            if (Settings != null)
+            {
+                ImGui.Separator();
+                var minC = Settings.MinChaosPrice.Value;
+                var maxC = Settings.MaxChaosPrice.Value;
+                ImGui.TextDisabled("Quick Price Settings:");
+                ImGui.SetNextItemWidth(70);
+                if (ImGui.InputInt("Min C", ref minC, 0, 0)) Settings.MinChaosPrice.Value = Math.Max(0, minC);
+                ImGui.SameLine();
+                ImGui.SetNextItemWidth(70);
+                if (ImGui.InputInt("Max C", ref maxC, 0, 0)) Settings.MaxChaosPrice.Value = Math.Max(0, maxC);
+            }
         }
         ImGui.End();
 
@@ -652,5 +666,131 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         }
 
         return "python";
+    }
+
+    public override void DrawSettings()
+    {
+        if (Settings == null) return;
+
+        // 1. TỔNG QUAN & BẬT TẮT
+        var enable = Settings.Enable.Value;
+        if (ImGui.Checkbox("Bật Plugin (Enable)", ref enable))
+            Settings.Enable.Value = enable;
+
+        var pause = Settings.PauseAutoBuyer.Value;
+        if (ImGui.Checkbox("TẠM DỪNG TOÀN BỘ (PAUSE / STOP) [F7]", ref pause))
+        {
+            Settings.PauseAutoBuyer.Value = pause;
+            _isPausedByUser = pause;
+            if (pause) StopAllPurchases();
+        }
+
+        ImGui.Separator();
+        ImGui.TextColored(new System.Numerics.Vector4(1.0f, 0.85f, 0.2f, 1.0f), "=== BỘ LỌC GIÁ (NHẬP SỐ TRỰC TIẾP TỪ BÀN PHÍM) ===");
+
+        // 2. GIÁ CHAOS & DIVINE (TRỰC TIẾP NHẬP SỐ BẰNG BÀN PHÍM)
+        var buyChaos = Settings.BuyChaosPrice.Value;
+        if (ImGui.Checkbox("Lọc Theo Giá Chaos Orb", ref buyChaos))
+            Settings.BuyChaosPrice.Value = buyChaos;
+
+        if (buyChaos)
+        {
+            var minChaos = Settings.MinChaosPrice.Value;
+            ImGui.SetNextItemWidth(140);
+            if (ImGui.InputInt("Giá Chaos Tối Thiểu (Min Chaos)", ref minChaos, 1, 10))
+            {
+                Settings.MinChaosPrice.Value = Math.Max(0, minChaos);
+            }
+
+            var maxChaos = Settings.MaxChaosPrice.Value;
+            ImGui.SetNextItemWidth(140);
+            if (ImGui.InputInt("Giá Chaos Tối Đa (Max Chaos)", ref maxChaos, 1, 10))
+            {
+                Settings.MaxChaosPrice.Value = Math.Max(0, maxChaos);
+            }
+        }
+
+        var buyDivine = Settings.BuyDivinePrice.Value;
+        if (ImGui.Checkbox("Mua Theo Giá Divine Orb", ref buyDivine))
+            Settings.BuyDivinePrice.Value = buyDivine;
+
+        if (buyDivine)
+        {
+            var maxDivine = Settings.MaxDivinePrice.Value;
+            ImGui.SetNextItemWidth(140);
+            if (ImGui.InputInt("Giá Divine Tối Đa (0 = Không mua bằng Divine)", ref maxDivine, 1, 5))
+            {
+                Settings.MaxDivinePrice.Value = Math.Max(0, maxDivine);
+            }
+        }
+
+        var maxGold = Settings.MaxGoldPrice.Value;
+        ImGui.SetNextItemWidth(140);
+        if (ImGui.InputInt("Giá Gold Tối Đa", ref maxGold, 500, 5000))
+        {
+            Settings.MaxGoldPrice.Value = Math.Max(0, maxGold);
+        }
+
+        ImGui.Separator();
+        ImGui.TextColored(new System.Numerics.Vector4(0.4f, 0.9f, 1.0f, 1.0f), "=== TÊN VẬT PHẨM & BỘ LỌC ===");
+
+        var baseNames = Settings.BaseNamesFilter.Value ?? "";
+        ImGui.SetNextItemWidth(260);
+        if (ImGui.InputText("Tên Vật Phẩm Cần Mua", ref baseNames, 256))
+        {
+            Settings.BaseNamesFilter.Value = baseNames;
+        }
+
+        var onlyTimeless = Settings.OnlyBuyTimelessJewels.Value;
+        if (ImGui.Checkbox("Chế Độ Chuyên Mua Timeless Jewel", ref onlyTimeless))
+            Settings.OnlyBuyTimelessJewels.Value = onlyTimeless;
+
+        if (onlyTimeless)
+        {
+            var buyBrutal = Settings.BuyBrutalRestraint.Value;
+            if (ImGui.Checkbox("Mua Brutal Restraint", ref buyBrutal)) Settings.BuyBrutalRestraint.Value = buyBrutal;
+            ImGui.SameLine();
+            var buyGlorious = Settings.BuyGloriousVanity.Value;
+            if (ImGui.Checkbox("Mua Glorious Vanity", ref buyGlorious)) Settings.BuyGloriousVanity.Value = buyGlorious;
+
+            var buyLethal = Settings.BuyLethalPride.Value;
+            if (ImGui.Checkbox("Mua Lethal Pride", ref buyLethal)) Settings.BuyLethalPride.Value = buyLethal;
+            ImGui.SameLine();
+            var buyMilitant = Settings.BuyMilitantFaith.Value;
+            if (ImGui.Checkbox("Mua Militant Faith", ref buyMilitant)) Settings.BuyMilitantFaith.Value = buyMilitant;
+
+            var buyHubris = Settings.BuyElegantHubris.Value;
+            if (ImGui.Checkbox("Mua Elegant Hubris", ref buyHubris)) Settings.BuyElegantHubris.Value = buyHubris;
+
+            var leader = Settings.LeaderFilter.Value ?? "";
+            ImGui.SetNextItemWidth(200);
+            if (ImGui.InputText("Lọc Theo Tướng (Leader)", ref leader, 128)) Settings.LeaderFilter.Value = leader;
+
+            var seeds = Settings.SpecificSeeds.Value ?? "";
+            ImGui.SetNextItemWidth(200);
+            if (ImGui.InputText("Lọc Theo Seed Cụ Thể (VD: 3693, 5834)", ref seeds, 256)) Settings.SpecificSeeds.Value = seeds;
+        }
+
+        ImGui.Separator();
+        ImGui.TextColored(new System.Numerics.Vector4(0.8f, 1.0f, 0.4f, 1.0f), "=== ĐỘ TRỄ & TỰ ĐỘNG CẤT ĐỒ ===");
+
+        var minDelay = Settings.MinDelayMs.Value;
+        ImGui.SetNextItemWidth(140);
+        if (ImGui.InputInt("Độ Trễ Tối Thiểu (Min Delay Ms)", ref minDelay, 5, 20))
+            Settings.MinDelayMs.Value = Math.Clamp(minDelay, 20, 2000);
+
+        var maxDelay = Settings.MaxDelayMs.Value;
+        ImGui.SetNextItemWidth(140);
+        if (ImGui.InputInt("Độ Trễ Tối Đa (Max Delay Ms)", ref maxDelay, 5, 20))
+            Settings.MaxDelayMs.Value = Math.Clamp(maxDelay, 30, 3000);
+
+        var autoDeposit = Settings.AutoDepositWhenFull.Value;
+        if (ImGui.Checkbox("Tự Động Về Cất Đồ Khi Đầy Hành Trang", ref autoDeposit))
+            Settings.AutoDepositWhenFull.Value = autoDeposit;
+
+        var targetTab = Settings.TargetStashTabName.Value ?? "";
+        ImGui.SetNextItemWidth(140);
+        if (ImGui.InputText("Tên Tab Rương Cần Cất (VD: boss)", ref targetTab, 64))
+            Settings.TargetStashTabName.Value = targetTab;
     }
 }
