@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Windows.Forms;
 using ExileCore;
 using ExileCore.Shared;
 using ExileCore.Shared.Enums;
