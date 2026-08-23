@@ -35,18 +35,15 @@ public static class MouseHelper
         Input.SetCursorPos(target);
     }
 
-    public static void FastCtrlLeftClickAt(Vector2 target, int hoverWaitMs = 15, int holdMs = 25)
+    public static void FastCtrlLeftClickAt(Vector2 target, int hoverWaitMs = 5, int holdMs = 15)
     {
         Input.SetCursorPos(target);
         if (hoverWaitMs > 0) Thread.Sleep(hoverWaitMs);
         Input.KeyDown(Keys.LControlKey);
-        Thread.Sleep(10);
         Input.LeftDown();
-        Thread.Sleep(holdMs);
+        if (holdMs > 0) Thread.Sleep(holdMs);
         Input.LeftUp();
-        Thread.Sleep(10);
         Input.KeyUp(Keys.LControlKey);
-        Thread.Sleep(10);
     }
 
     /// <summary>

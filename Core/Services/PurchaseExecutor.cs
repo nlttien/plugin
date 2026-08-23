@@ -65,12 +65,11 @@ public class PurchaseExecutor
             var versionStr = _settings.GameVersion?.Value ?? "AutoDetect";
             var adapter = _adapterFactory.GetAdapter(_gc, versionStr);
 
-            // Chờ ngắn để UI và danh sách vật phẩm nạp đầy đủ vào bộ nhớ
-            yield return new WaitTime(200);
+            // Chờ siêu ngắn (25ms) để UI ổn định
+            yield return new WaitTime(25);
 
             if (!adapter.IsShopOpen(_gc) || (_gc.IngameState?.Data?.CurrentAreaHash != startAreaHash))
             {
-                LogHelper.Warn("Cửa sổ Shop chưa được mở hoặc đã đổi khu vực!");
                 yield break;
             }
 
@@ -78,17 +77,16 @@ public class PurchaseExecutor
             var currentItems = adapter.GetAvailableItems(_gc);
             if (currentItems == null || currentItems.Count == 0)
             {
-                yield return new WaitTime(200);
+                yield return new WaitTime(35);
                 currentItems = adapter.GetAvailableItems(_gc);
                 if (currentItems == null || currentItems.Count == 0)
                 {
-                    LogHelper.Info("Không tìm thấy vật phẩm nào trong Tab Shop hiện tại.");
                     yield break;
                 }
             }
 
             // ----------------------------------------------------
-            // BƯỚC 1: LỌC TẤT CẢ CÁC VẬT PHẨM ĐẠT CHUẨN ĐỂ QUÉT GIÁ TRƯỚC
+            // LỌC DANH SÁCH VẬT PHẨM ỨNG VIÊN PHÙ HỢP
             // ----------------------------------------------------
             List<ShopItemInfo> candidateItems;
             if (_settings.IsTimelessMode())
@@ -111,91 +109,44 @@ public class PurchaseExecutor
 
             if (candidateItems.Count > 0)
             {
-                LogHelper.Info($"[BƯỚC 1: QUÉT GIÁ SIÊU TỐC] Tìm thấy {candidateItems.Count} vật phẩm phù hợp trong Tab. Bắt đầu quét nhanh...");
+                var activeRules = _settings.GetActiveRules();
 
-                // QUÉT TOÀN BỘ CÁC VẬT PHẨM TRƯỚC VỚI TỐC ĐỘ CAO ĐỂ NẠP GIÁ VÀO RAM
+                // SINGLE-PASS INSTANT BUY: Rà chuột tới đâu kiểm tra giá và Ctrl+Click mua ngay lập tức tại đó!
                 foreach (var item in candidateItems)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                    // Di chuyển chuột trực tiếp và đợi 35ms cho RAM cập nhật Tooltip
-                    MouseHelper.FastDirectMove(item.ClickPosition);
-                    yield return new WaitTime(35);
+                    if (_settings.IsTimelessMode() && IsOccludedByLargerItem(item, currentItems)) continue;
+                    if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height)) break;
 
-                    // Đọc và cập nhật trực tiếp dữ liệu giá và mod từ Tooltip
+                    var clickTarget = new Vector2(item.ScreenRect.Center.X, item.ScreenRect.Center.Y + 4);
+                    MouseHelper.FastDirectMove(clickTarget);
+                    yield return new WaitTime(18);
+
+                    // Đọc giá từ Tooltip
                     UpdateItemFromLiveHover(_gc, item);
-                    LogHelper.Info($"[QUÉT XONG] {item.DisplayName} -> Giá: {item.CostString ?? "Chưa đọc được"} (Chaos: {item.Cost?.Amount})");
-                }
 
-                // ----------------------------------------------------
-                // BƯỚC 2: TIẾN HÀNH MUA TOÀN BỘ CÁC VẬT PHẨM ĐẠT CHUẨN GIÁ
-                // ----------------------------------------------------
-                List<ShopItemInfo> validItemsToBuy;
-                if (_settings.IsTimelessMode())
-                {
-                    validItemsToBuy = candidateItems
-                        .Where(i => ItemFilterEngine.MatchesTimelessSettings(i, _settings))
-                        .ToList();
-                }
-                else
-                {
-                    var activeRules = _settings.GetActiveRules();
-                    validItemsToBuy = candidateItems
-                        .Where(i => ItemFilterEngine.MatchesGeneralSettings(i, _settings, activeRules))
-                        .ToList();
-                }
+                    // Kiểm tra tiêu chuẩn giá
+                    var canBuy = _settings.IsTimelessMode()
+                        ? ItemFilterEngine.MatchesTimelessSettings(item, _settings)
+                        : ItemFilterEngine.MatchesGeneralSettings(item, _settings, activeRules);
 
-                if (validItemsToBuy.Count == 0)
-                {
-                    LogHelper.Info($"[HOÀN TẤT QUÉT] Đã quét xong {candidateItems.Count} vật phẩm. Không có vật phẩm nào đạt chuẩn điều kiện giá -> Chuyển nhà ngay!");
-                }
-                else
-                {
-                    LogHelper.Info($"[BƯỚC 2: MUA HÀNG LOẠT] Tìm thấy {validItemsToBuy.Count} vật phẩm đạt chuẩn giá. Bắt đầu mua siêu tốc...");
-
-                    foreach (var item in validItemsToBuy)
+                    if (canBuy)
                     {
-                        if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
+                        if (_settings.IsTimelessMode() && IsHoveringNonJewelEquipment(_gc)) continue;
 
-                        // 1. Kiểm tra an toàn (nếu ở chế độ ngọc): Nếu bị áo giáp lớn đè -> BỎ QUA NGAY
-                        if (_settings.IsTimelessMode() && IsOccludedByLargerItem(item, currentItems))
-                        {
-                            LogHelper.Warn($"[BỎ QUA AN TOÀN] Ô {item.DisplayName} bị áo giáp/trang bị đè lên! Bỏ qua để không mua nhầm.");
-                            continue;
-                        }
+                        // Ctrl+Click mua ngay tại chỗ (0ms hover, 15ms hold)
+                        MouseHelper.FastCtrlLeftClickAt(clickTarget, 0, 15);
+                        yield return new WaitTime(15);
 
-                        // 2. Kiểm tra ô trống hành trang trước khi mua
-                        if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height))
-                        {
-                            LogHelper.Warn($"Hành trang (Inventory) đã đầy! Không còn đủ ô trống cho {item.DisplayName}. Kết thúc mua tại Shop này để chuẩn bị về cất đồ.");
-                            break;
-                        }
-
-                        // 3. Tọa độ tâm chính xác của ô đồ (+4px vào giữa icon)
-                        var clickTarget = new Vector2(item.ScreenRect.Center.X, item.ScreenRect.Center.Y + 4);
-
-                        // 4. KIỂM TRA TRỰC TIẾP DƯỚI CON TRỎ CHUỘT (CHỈ kích hoạt khi mua ngọc Timeless)
-                        if (_settings.IsTimelessMode() && IsHoveringNonJewelEquipment(_gc))
-                        {
-                            LogHelper.Warn($"[HỦY CLICK AN TOÀN] Con trỏ chuột đang trỏ vào Áo giáp/Trang bị có socket! Hủy click ngay lập tức.");
-                            continue;
-                        }
-
-                        // 5. Thực hiện Ctrl + Click siêu tốc (15ms hover, 25ms hold)
-                        MouseHelper.FastCtrlLeftClickAt(clickTarget, 15, 25);
-
-                        // 6. Quét nhanh xem có popup cảnh báo giá không (30ms phản hồi)
-                        yield return new WaitTime(30);
                         if (IsPriceDifferenceModalOpen(_gc))
                         {
-                            LogHelper.Info("Phát hiện hộp thoại cảnh báo giá! Bấm [ OK ] ngay...");
                             HandlePriceDifferenceModal(_gc, _settings);
-                            yield return new WaitTime(35);
+                            yield return new WaitTime(20);
                         }
 
                         totalPurchasedCount++;
 
-                        // Tạo chuỗi thông tin giá chi tiết
                         var priceText = !string.IsNullOrWhiteSpace(item.CostString) 
                             ? item.CostString 
                             : ((item.Cost != null && item.Cost.Amount > 0) 
@@ -208,18 +159,10 @@ public class PurchaseExecutor
                         purchasedDetails.Add(fullBuyLog);
                         RecentPurchases.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {fullBuyLog}");
                         if (RecentPurchases.Count > 10) RecentPurchases.RemoveAt(RecentPurchases.Count - 1);
-
-                        // Ghi vào file log lịch sử mua đồ (chống khóa file với FileShare.ReadWrite)
                         AppendToHistoryLog($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ĐÃ MUA] {fullBuyLog}");
-
-                        // 7. Nhịp nghỉ siêu ngắn giữa các lần mua (35-50ms)
-                        var buyDelay = Math.Clamp(_settings.MinDelayMs.Value, 30, 70);
-                        yield return new WaitTime(buyDelay);
                     }
                 }
             }
-
-            LogHelper.Info($"=== Hoàn thành quét & mua đồ trong Tab! Đã mua: {totalPurchasedCount} vật phẩm -> Chuyển nhà ngay! ===");
         }
         finally
         {
@@ -227,11 +170,11 @@ public class PurchaseExecutor
             var statusStr = RequestStop ? "STOPPED" : "COMPLETED";
             NotifyBridge(statusStr, totalPurchasedCount, purchasedDetails);
 
-            // Bấm Space đóng cửa sổ Shop ngay để nhân vật sẵn sàng di chuyển / nhận lệnh chuyển nhà
+            // Bấm Space đóng cửa sổ Shop ngay tức thì (10ms)
             try
             {
                 Input.KeyDown(Keys.Space);
-                Thread.Sleep(20);
+                Thread.Sleep(10);
                 Input.KeyUp(Keys.Space);
             }
             catch { }
