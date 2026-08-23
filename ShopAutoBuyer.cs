@@ -277,23 +277,6 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                         _cachedAllItems.Clear();
                         _cachedMatchingItems.Clear();
                     }
-
-                    // Neu mo Shop ma khong con vat pham nao hop le, tu dong bao ngay ve Web Trade de chuyen nha tuc thi
-                    if (_cachedMatchingItems.Count == 0 && !_isPausedByUser && (_purchaseExecutor == null || !_purchaseExecutor.IsRunning))
-                    {
-                        if ((DateTime.Now - _lastNoItemsSignalTime).TotalMilliseconds > 300)
-                        {
-                            _lastNoItemsSignalTime = DateTime.Now;
-                            NotifyWebTradeStatus("COMPLETED", 0);
-                            try
-                            {
-                                Input.KeyDown(Keys.Space);
-                                Thread.Sleep(20);
-                                Input.KeyUp(Keys.Space);
-                            }
-                            catch { }
-                        }
-                    }
                 }
 
                 // 1. Ve Highlight len cac item Timeless hop le trong shop
