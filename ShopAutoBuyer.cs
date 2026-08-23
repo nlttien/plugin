@@ -31,6 +31,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     private DateTime _lastNoItemsSignalTime = DateTime.MinValue;
     private DateTime _lastModalClickTime = DateTime.MinValue;
     private DateTime _lastModalCheckTime = DateTime.MinValue;
+    private DateTime _lastNpcClickTime = DateTime.MinValue;
     private bool _hasScannedCurrentShop = false;
     private bool _isPriceModalOpenCached = false;
     private uint _lastAreaHash = 0;
@@ -202,7 +203,31 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
-            // 4. TU DONG MUA HOAN TOAN (Hands-Free): Khong di chuyen, chi can mo Shop la lap tuc quet va mua do
+            // 4. TU DONG TUONG TAC NPC FAUSTUS KHI DEN HIDEOUT (Neu bat AutoInteractHideoutNpc)
+            if (!isShopOpen && !_isPausedByUser && !isRunning && Settings?.AutoInteractHideoutNpc?.Value == true && !_hasScannedCurrentShop)
+            {
+                if ((DateTime.Now - _lastNpcClickTime).TotalMilliseconds > 1200)
+                {
+                    var npc = FindHideoutNpc();
+                    if (npc != null && npc.IsValid)
+                    {
+                        var screenPos = GameController.IngameState?.Camera?.WorldToScreen(npc.Pos);
+                        if (screenPos.HasValue && screenPos.Value.X > 50 && screenPos.Value.Y > 50 &&
+                            screenPos.Value.X < (GameController.Window?.GetWindowRectangleTimeCache.Width ?? 1920) - 50 &&
+                            screenPos.Value.Y < (GameController.Window?.GetWindowRectangleTimeCache.Height ?? 1080) - 50)
+                        {
+                            _lastNpcClickTime = DateTime.Now;
+                            MouseHelper.FastDirectMove(new Vector2(screenPos.Value.X, screenPos.Value.Y));
+                            Input.LeftDown();
+                            Thread.Sleep(15);
+                            Input.LeftUp();
+                            LogHelper.Info($">>> [NPC INTERACT] Tu dong click NPC Faustus tai vi tri ({screenPos.Value.X:F0}, {screenPos.Value.Y:F0})! <<<");
+                        }
+                    }
+                }
+            }
+
+            // 5. TU DONG MUA HOAN TOAN (Hands-Free): Khong di chuyen, chi can mo Shop la lap tuc quet va mua do
             if (isShopOpen && !_isPausedByUser && Settings?.HighlightOnlyMode?.Value != true && !_hasScannedCurrentShop)
             {
                 if (!isRunning)
@@ -212,7 +237,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
-            // 5. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG (Tuyet doi khong tu bien ve khi dang mo Shop hoac dang mua do)
+            // 6. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG (Tuyet doi khong tu bien ve khi dang mo Shop hoac dang mua do)
             var shouldDeposit = !isShopOpen && !isRunning &&
                                 ((Settings?.AutoDepositWhenFull?.Value == true && _stashDepositService != null && _stashDepositService.NeedsDeposit()) ||
                                  (Settings?.TestDepositAfterEveryPurchase?.Value == true));
@@ -616,6 +641,31 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         {
             LogHelper.Error($"Loi khi dieu khien Web Trade process: {ex.Message}");
         }
+    }
+
+    private ExileCore.PoEMemory.MemoryObjects.Entity? FindHideoutNpc()
+    {
+        try
+        {
+            var entities = GameController?.EntityListWrapper?.ValidEntitiesByType?[ExileCore.Shared.Enums.EntityType.Npc];
+            if (entities != null)
+            {
+                foreach (var entity in entities)
+                {
+                    if (entity == null || !entity.IsValid || !entity.IsTargetable) continue;
+                    var path = entity.Path ?? "";
+                    if (path.Contains("Faustus", StringComparison.OrdinalIgnoreCase) ||
+                        path.Contains("VillageFaustusHideout", StringComparison.OrdinalIgnoreCase) ||
+                        path.Contains("Merchant", StringComparison.OrdinalIgnoreCase) ||
+                        path.Contains("BlackMarket", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return entity;
+                    }
+                }
+            }
+        }
+        catch { }
+        return null;
     }
 
     private static string FindPythonExecutable()
