@@ -73,213 +73,145 @@ public class PurchaseExecutor
                 yield break;
             }
 
-            // CHỈ QUÉT DUY NHẤT 1 TAB ĐANG MỞ (KHÔNG CHUYỂN TAB)
-            var currentItems = adapter.GetAvailableItems(_gc);
-            if (currentItems == null || currentItems.Count == 0)
+            var activeRules = _settings.GetActiveRules();
+            var consecutiveUnbuyableCount = 0;
+
+            // Chờ 80ms ban đầu để server PoE nạp đầy đủ danh sách ô đồ và tiền tệ vào RAM
+            yield return new WaitTime(80);
+
+            // DYNAMIC LIVE-QUEUE SCAN: Quét liên tục trực tiếp từ bộ nhớ RAM cho tới khi mua sạch 100% item thỏa mãn
+            while (true)
             {
-                yield return new WaitTime(35);
-                currentItems = adapter.GetAvailableItems(_gc);
-                if (currentItems == null || currentItems.Count == 0)
+                if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
+                if (InventorySpaceChecker.GetFreeSlotsCount(_gc) <= 0) break;
+
+                var liveItems = adapter.GetAvailableItems(_gc);
+                if (liveItems == null || liveItems.Count == 0) break;
+
+                var matchingItems = liveItems
+                    .Where(i => i != null && (_settings.IsTimelessMode() ? (i.IsTimelessJewel && i.Width == 1 && i.Height == 1 && i.Sockets == 0 && !IsOccludedByLargerItem(i, liveItems) && ItemFilterEngine.MatchesTimelessCandidate(i, _settings)) : ItemFilterEngine.MatchesAnyRule(i, activeRules)))
+                    .OrderBy(i => i.ScreenRect.Top)
+                    .ThenBy(i => i.ScreenRect.Left)
+                    .ToList();
+
+                // Nếu shop đã hết sạch item thỏa mãn -> Kết thúc chu kỳ hoàn hảo!
+                if (matchingItems.Count == 0 || consecutiveUnbuyableCount >= matchingItems.Count)
                 {
-                    yield break;
+                    break;
                 }
-            }
 
-            // ----------------------------------------------------
-            // LỌC DANH SÁCH VẬT PHẨM ỨNG VIÊN PHÙ HỢP
-            // ----------------------------------------------------
-            List<ShopItemInfo> candidateItems;
-            if (_settings.IsTimelessMode())
-            {
-                candidateItems = currentItems
-                    .Where(i => i != null && i.IsTimelessJewel && i.Width == 1 && i.Height == 1 && i.Sockets == 0 && !IsOccludedByLargerItem(i, currentItems) && ItemFilterEngine.MatchesTimelessCandidate(i, _settings))
-                    .OrderBy(i => i.ScreenRect.Top)
-                    .ThenBy(i => i.ScreenRect.Left)
-                    .ToList();
-            }
-            else
-            {
-                var activeRules = _settings.GetActiveRules();
-                candidateItems = currentItems
-                    .Where(i => i != null && ItemFilterEngine.MatchesAnyRule(i, activeRules))
-                    .OrderBy(i => i.ScreenRect.Top)
-                    .ThenBy(i => i.ScreenRect.Left)
-                    .ToList();
-            }
+                // Luôn lấy món đồ đầu tiên trong danh sách còn lại
+                var item = matchingItems[0];
+                if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height)) break;
 
-            if (candidateItems.Count > 0)
-            {
-                var activeRules = _settings.GetActiveRules();
+                var clickTarget = new Vector2(item.ScreenRect.Center.X, item.ScreenRect.Center.Y + 4);
+                var boughtSuccessfully = false;
 
-                // Chờ 60ms ban đầu để server PoE đồng bộ dữ liệu tiền trong hòm/túi đồ khi vừa mở shop
-                yield return new WaitTime(60);
-
-                // SINGLE-PASS INSTANT BUY với cơ chế TWO-WAY MEMORY STATE & SMART RETRY BACK-OFF
-                foreach (var item in candidateItems)
+                for (var attempt = 1; attempt <= 4; attempt++)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                    if (_settings.IsTimelessMode() && IsOccludedByLargerItem(item, currentItems)) continue;
-                    if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height)) break;
+                    // 1. DI CHUỘT VÀO ITEM ĐỂ HIỆN TOOLTIP Ở MỌI LẦN THỬ
+                    MouseHelper.FastDirectMove(clickTarget);
+                    yield return new WaitTime(25);
 
-                    var clickTarget = new Vector2(item.ScreenRect.Center.X, item.ScreenRect.Center.Y + 4);
-                    var boughtSuccessfully = false;
+                    // 2. CẬP NHẬT & TÁI KIỂM TRA GIÁ TRƯỚC KHI CLICK
+                    UpdateItemFromLiveHover(_gc, item);
 
-                    for (var attempt = 1; attempt <= 4; attempt++)
+                    var canBuy = _settings.IsTimelessMode()
+                        ? ItemFilterEngine.MatchesTimelessSettings(item, _settings)
+                        : ItemFilterEngine.MatchesGeneralSettings(item, _settings, activeRules);
+
+                    if (!canBuy)
                     {
-                        if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
+                        LogHelper.Warn($"[GIÁ NGOÀI PHẠM VI] Bỏ qua {item.DisplayName} vì giá không thỏa mãn ({item.CostString}).");
+                        consecutiveUnbuyableCount++;
+                        break;
+                    }
 
-                        // 1. DI CHUỘT VÀO ITEM ĐỂ HIỆN TOOLTIP Ở MỌI LẦN THỬ
-                        MouseHelper.FastDirectMove(clickTarget);
-                        yield return new WaitTime(20);
+                    if (_settings.IsTimelessMode() && IsHoveringNonJewelEquipment(_gc))
+                    {
+                        consecutiveUnbuyableCount++;
+                        break;
+                    }
 
-                        // 2. CẬP NHẬT & TÁI KIỂM TRA GIÁ TRƯỚC KHI CLICK
-                        UpdateItemFromLiveHover(_gc, item);
+                    // Ghi nhận số lượng item trong túi đồ trước khi click
+                    var invCountBefore = GetPlayerInventoryItemCount(_gc);
 
-                        var canBuy = _settings.IsTimelessMode()
-                            ? ItemFilterEngine.MatchesTimelessSettings(item, _settings)
-                            : ItemFilterEngine.MatchesGeneralSettings(item, _settings, activeRules);
+                    // 3. Ctrl+Click mua với phím Ctrl nhận chắc chắn 100% (8ms Ctrl buffer, 20ms hold)
+                    MouseHelper.FastCtrlLeftClickAt(clickTarget, 0, 20);
 
-                        if (!canBuy)
+                    // 4. MICRO-POLLING KIỂM TRA TRẠNG THÁI BỘ NHỚ (15ms/lần, tối đa 150ms)
+                    var confirmedByMemory = false;
+                    for (var tick = 0; tick < 10; tick++)
+                    {
+                        yield return new WaitTime(15);
+
+                        if (IsPriceDifferenceModalOpen(_gc))
                         {
-                            LogHelper.Warn($"[GIÁ NGOÀI PHẠM VI] Bỏ qua {item.DisplayName} vì giá không thỏa mãn ({item.CostString}).");
+                            HandlePriceDifferenceModal(_gc, _settings);
+                            yield return new WaitTime(30);
+                        }
+
+                        // Chiều 1 (Chính xác tuyệt đối): Số lượng item trong túi đồ nhân vật đã tăng lên (+1)
+                        var currentInvCount = GetPlayerInventoryItemCount(_gc);
+                        if (invCountBefore >= 0 && currentInvCount > invCountBefore)
+                        {
+                            confirmedByMemory = true;
+                            boughtSuccessfully = true;
                             break;
                         }
 
-                        if (_settings.IsTimelessMode() && IsHoveringNonJewelEquipment(_gc)) break;
-
-                        // Ghi nhận số lượng item trong túi đồ trước khi click
-                        var invCountBefore = GetPlayerInventoryItemCount(_gc);
-
-                        // 3. Ctrl+Click mua với phím Ctrl nhận chắc chắn 100%
-                        MouseHelper.FastCtrlLeftClickAt(clickTarget, 0, 20);
-
-                        // 4. MICRO-POLLING KIỂM TRA TRẠNG THÁI BỘ NHỚ (15ms/lần, tối đa 150ms)
-                        var confirmedByMemory = false;
-                        for (var tick = 0; tick < 10; tick++)
+                        // Chiều 2: Shop vẫn đang mở VÀ item đã biến mất khỏi danh sách ô đồ của Shop
+                        if (adapter.IsShopOpen(_gc))
                         {
-                            yield return new WaitTime(15);
-
-                            if (IsPriceDifferenceModalOpen(_gc))
+                            var rem = adapter.GetAvailableItems(_gc);
+                            if (rem != null)
                             {
-                                HandlePriceDifferenceModal(_gc, _settings);
-                                yield return new WaitTime(30);
-                            }
+                                var itemStillInShop = rem.Any(r => r != null && 
+                                    (r.InventoryItem?.Address == item.InventoryItem?.Address || 
+                                     (r.InventoryItem?.InventPosX == item.InventoryItem?.InventPosX && r.InventoryItem?.InventPosY == item.InventoryItem?.InventPosY)));
 
-                            // Chiều 1 (Chính xác tuyệt đối): Số lượng item trong túi đồ nhân vật đã tăng lên (+1)
-                            var currentInvCount = GetPlayerInventoryItemCount(_gc);
-                            if (invCountBefore >= 0 && currentInvCount > invCountBefore)
-                            {
-                                confirmedByMemory = true;
-                                boughtSuccessfully = true;
-                                break;
-                            }
-
-                            // Chiều 2: Shop vẫn đang mở VÀ item đã biến mất khỏi danh sách ô đồ của Shop
-                            if (adapter.IsShopOpen(_gc))
-                            {
-                                var remainingItems = adapter.GetAvailableItems(_gc);
-                                if (remainingItems != null)
+                                if (!itemStillInShop)
                                 {
-                                    var itemStillInShop = remainingItems.Any(r => r != null && 
-                                        (r.InventoryItem?.Address == item.InventoryItem?.Address || 
-                                         (r.InventoryItem?.InventPosX == item.InventoryItem?.InventPosX && r.InventoryItem?.InventPosY == item.InventoryItem?.InventPosY)));
-
-                                    // Nếu shop còn các món khác nhưng món này đã biến mất -> Đã mua thành công!
-                                    if (!itemStillInShop && remainingItems.Count > 0)
-                                    {
-                                        confirmedByMemory = true;
-                                        boughtSuccessfully = true;
-                                        break;
-                                    }
+                                    confirmedByMemory = true;
+                                    boughtSuccessfully = true;
+                                    break;
                                 }
                             }
                         }
-
-                        if (confirmedByMemory)
-                        {
-                            break; // Mua thành công siêu tốc
-                        }
-
-                        if (attempt < 4)
-                        {
-                            var backoffMs = 90 + (attempt * 40); // 130ms, 170ms, 210ms để game server kịp đồng bộ tiền
-                            LogHelper.Warn($"[THỬ LẠI #{attempt}] Game chưa load xong tiền / lag. Đang đợi {backoffMs}ms đồng bộ tiền và mua lại...");
-                            yield return new WaitTime(backoffMs);
-                        }
                     }
 
-                    if (boughtSuccessfully)
+                    if (confirmedByMemory)
                     {
-                        totalPurchasedCount++;
+                        consecutiveUnbuyableCount = 0;
+                        break; // Mua thành công món này
+                    }
 
-                        var priceText = !string.IsNullOrWhiteSpace(item.CostString) 
-                            ? item.CostString 
-                            : ((item.Cost != null && item.Cost.Amount > 0) 
-                                ? $"{item.Cost.Amount} {item.Cost.CurrencyName}" 
-                                : (_settings.BuyChaosPrice?.Value == true ? $"{_settings.MaxChaosPrice?.Value} Chaos Orb (Max)" : "Đã mua"));
-                        var goldText = item.Cost?.GoldAmount > 0 ? $" ({item.Cost.GoldAmount} Gold)" : "";
-                        var fullBuyLog = $"{item.DisplayName} | Giá: {priceText}{goldText}";
-
-                        LogHelper.Info($"[ĐÃ MUA THÀNH CÔNG] {fullBuyLog}");
-                        purchasedDetails.Add(fullBuyLog);
-                        RecentPurchases.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {fullBuyLog}");
-                        if (RecentPurchases.Count > 10) RecentPurchases.RemoveAt(RecentPurchases.Count - 1);
-                        AppendToHistoryLog($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ĐÃ MUA] {fullBuyLog}");
+                    if (attempt < 4)
+                    {
+                        LogHelper.Warn($"[THỬ LẠI #{attempt}] Mua chưa nhận / lag tiền. Đợi đúng 500ms đồng bộ tiền và mua lại...");
+                        yield return new WaitTime(500); // SET RETRY DELAY ĐÚNG 500MS
                     }
                 }
 
-                // ----------------------------------------------------
-                // FINAL SWEEP PASS: Quét vét lại bộ nhớ shop xem còn sót item nào do lag tiền ban đầu không
-                // ----------------------------------------------------
-                if (adapter.IsShopOpen(_gc) && InventorySpaceChecker.GetFreeSlotsCount(_gc) > 0)
+                if (boughtSuccessfully)
                 {
-                    var sweepItems = adapter.GetAvailableItems(_gc);
-                    var unboughtCandidates = sweepItems?
-                        .Where(i => i != null && (_settings.IsTimelessMode() ? ItemFilterEngine.MatchesTimelessCandidate(i, _settings) : ItemFilterEngine.MatchesAnyRule(i, activeRules)))
-                        .ToList();
+                    totalPurchasedCount++;
 
-                    if (unboughtCandidates != null && unboughtCandidates.Count > 0)
-                    {
-                        LogHelper.Warn($"[FINAL SWEEP] Phát hiện còn {unboughtCandidates.Count} item trong shop chưa mua (do trễ tiền ban đầu). Đang mua vét toàn bộ...");
-                        foreach (var sweepItem in unboughtCandidates)
-                        {
-                            if (!adapter.IsShopOpen(_gc) || RequestStop) break;
-                            if (!InventorySpaceChecker.HasSpaceForItem(_gc, sweepItem.Width, sweepItem.Height)) break;
+                    var priceText = !string.IsNullOrWhiteSpace(item.CostString) 
+                        ? item.CostString 
+                        : ((item.Cost != null && item.Cost.Amount > 0) 
+                            ? $"{item.Cost.Amount} {item.Cost.CurrencyName}" 
+                            : (_settings.BuyChaosPrice?.Value == true ? $"{_settings.MaxChaosPrice?.Value} Chaos Orb (Max)" : "Đã mua"));
+                    var goldText = item.Cost?.GoldAmount > 0 ? $" ({item.Cost.GoldAmount} Gold)" : "";
+                    var fullBuyLog = $"{item.DisplayName} | Giá: {priceText}{goldText}";
 
-                            var sweepTarget = new Vector2(sweepItem.ScreenRect.Center.X, sweepItem.ScreenRect.Center.Y + 4);
-                            MouseHelper.FastDirectMove(sweepTarget);
-                            yield return new WaitTime(25);
-                            UpdateItemFromLiveHover(_gc, sweepItem);
-
-                            var canBuySweep = _settings.IsTimelessMode()
-                                ? ItemFilterEngine.MatchesTimelessSettings(sweepItem, _settings)
-                                : ItemFilterEngine.MatchesGeneralSettings(sweepItem, _settings, activeRules);
-
-                            if (canBuySweep)
-                            {
-                                var invBefore = GetPlayerInventoryItemCount(_gc);
-                                MouseHelper.FastCtrlLeftClickAt(sweepTarget, 0, 20);
-                                yield return new WaitTime(180);
-
-                                if (IsPriceDifferenceModalOpen(_gc))
-                                {
-                                    HandlePriceDifferenceModal(_gc, _settings);
-                                    yield return new WaitTime(30);
-                                }
-
-                                var invAfter = GetPlayerInventoryItemCount(_gc);
-                                if (invBefore >= 0 && invAfter > invBefore)
-                                {
-                                    totalPurchasedCount++;
-                                    var sweepLog = $"{sweepItem.DisplayName} | [VÉT] {sweepItem.CostString}";
-                                    LogHelper.Info($"[ĐÃ MUA VÉT THÀNH CÔNG] {sweepLog}");
-                                    purchasedDetails.Add(sweepLog);
-                                    AppendToHistoryLog($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ĐÃ MUA] {sweepLog}");
-                                }
-                            }
-                        }
-                    }
+                    LogHelper.Info($"[ĐÃ MUA THÀNH CÔNG] {fullBuyLog}");
+                    purchasedDetails.Add(fullBuyLog);
+                    RecentPurchases.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {fullBuyLog}");
+                    if (RecentPurchases.Count > 10) RecentPurchases.RemoveAt(RecentPurchases.Count - 1);
+                    AppendToHistoryLog($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ĐÃ MUA] {fullBuyLog}");
                 }
             }
         }
