@@ -111,7 +111,7 @@ public class PurchaseExecutor
             {
                 var activeRules = _settings.GetActiveRules();
 
-                // SINGLE-PASS INSTANT BUY: Rà chuột tới đâu kiểm tra giá và Ctrl+Click mua ngay lập tức tại đó!
+                // SINGLE-PASS INSTANT BUY với cơ chế RETRY THÔNG MINH (Tự động thử lại lên tới 3 lần nếu game trễ sync currency)
                 foreach (var item in candidateItems)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
@@ -123,28 +123,57 @@ public class PurchaseExecutor
                     MouseHelper.FastDirectMove(clickTarget);
                     yield return new WaitTime(18);
 
-                    // Đọc giá từ Tooltip
-                    UpdateItemFromLiveHover(_gc, item);
+                    var boughtSuccessfully = false;
 
-                    // Kiểm tra tiêu chuẩn giá
-                    var canBuy = _settings.IsTimelessMode()
-                        ? ItemFilterEngine.MatchesTimelessSettings(item, _settings)
-                        : ItemFilterEngine.MatchesGeneralSettings(item, _settings, activeRules);
-
-                    if (canBuy)
+                    for (var attempt = 1; attempt <= 3; attempt++)
                     {
-                        if (_settings.IsTimelessMode() && IsHoveringNonJewelEquipment(_gc)) continue;
+                        if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                        // Ctrl+Click mua ngay tại chỗ (0ms hover, 15ms hold)
+                        // 1. CẬP NHẬT & TÁI KIỂM TRA GIÁ TRƯỚC MỖI LẦN MUA
+                        UpdateItemFromLiveHover(_gc, item);
+
+                        var canBuy = _settings.IsTimelessMode()
+                            ? ItemFilterEngine.MatchesTimelessSettings(item, _settings)
+                            : ItemFilterEngine.MatchesGeneralSettings(item, _settings, activeRules);
+
+                        if (!canBuy)
+                        {
+                            LogHelper.Warn($"[GIÁ NGOÀI PHẠM VI] Bỏ qua {item.DisplayName} vì giá không thỏa mãn cài đặt ({item.CostString}).");
+                            break;
+                        }
+
+                        if (_settings.IsTimelessMode() && IsHoveringNonJewelEquipment(_gc)) break;
+
+                        // 2. Ctrl+Click mua ngay tại chỗ (0ms hover, 15ms hold)
                         MouseHelper.FastCtrlLeftClickAt(clickTarget, 0, 15);
-                        yield return new WaitTime(15);
+                        yield return new WaitTime(25);
 
                         if (IsPriceDifferenceModalOpen(_gc))
                         {
                             HandlePriceDifferenceModal(_gc, _settings);
-                            yield return new WaitTime(20);
+                            yield return new WaitTime(25);
                         }
 
+                        // 3. KIỂM TRA XEM ITEM ĐÃ MUA THÀNH CÔNG CHƯA (Item rời khỏi shop)
+                        yield return new WaitTime(35);
+                        var remainingItems = adapter.GetAvailableItems(_gc);
+                        var stillInShop = remainingItems != null && remainingItems.Any(r => r != null && r.InventoryItem?.Address == item.InventoryItem?.Address);
+
+                        if (!stillInShop)
+                        {
+                            boughtSuccessfully = true;
+                            break;
+                        }
+
+                        if (attempt < 3)
+                        {
+                            LogHelper.Warn($"[THỬ LẠI #{attempt}] Game báo chưa nhận tiền / trễ sync. Đang kiểm tra lại giá ({item.CostString}) và thử lại...");
+                            yield return new WaitTime(60);
+                        }
+                    }
+
+                    if (boughtSuccessfully)
+                    {
                         totalPurchasedCount++;
 
                         var priceText = !string.IsNullOrWhiteSpace(item.CostString) 
