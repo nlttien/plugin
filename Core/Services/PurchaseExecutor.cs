@@ -111,7 +111,7 @@ public class PurchaseExecutor
             {
                 var activeRules = _settings.GetActiveRules();
 
-                // SINGLE-PASS INSTANT BUY với cơ chế RETRY CHUẨN XÁC (Mỗi lần thử đều di chuột đọc Tooltip và kiểm tra giá chuẩn 100%)
+                // SINGLE-PASS INSTANT BUY với cơ chế TWO-WAY MEMORY STATE MICRO-CHECK (24ms-36ms phản hồi siêu tốc)
                 foreach (var item in candidateItems)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
@@ -128,7 +128,7 @@ public class PurchaseExecutor
 
                         // 1. DI CHUỘT VÀO ITEM ĐỂ HIỆN TOOLTIP Ở MỌI LẦN THỬ
                         MouseHelper.FastDirectMove(clickTarget);
-                        yield return new WaitTime(25);
+                        yield return new WaitTime(20);
 
                         // 2. CẬP NHẬT & TÁI KIỂM TRA GIÁ TRƯỚC KHI CLICK
                         UpdateItemFromLiveHover(_gc, item);
@@ -145,34 +145,59 @@ public class PurchaseExecutor
 
                         if (_settings.IsTimelessMode() && IsHoveringNonJewelEquipment(_gc)) break;
 
-                        // 3. Ctrl+Click mua
-                        MouseHelper.FastCtrlLeftClickAt(clickTarget, 0, 20);
-                        
-                        // Chờ 200ms để game server xử lý giao dịch tiền và cập nhật kho
-                        yield return new WaitTime(200);
+                        // Ghi nhận số lượng item trong túi đồ trước khi click
+                        var invCountBefore = GetPlayerInventoryItemCount(_gc);
 
-                        if (IsPriceDifferenceModalOpen(_gc))
+                        // 3. Ctrl+Click mua
+                        MouseHelper.FastCtrlLeftClickAt(clickTarget, 0, 15);
+
+                        // 4. MICRO-POLLING KIỂM TRA TRẠNG THÁI BỘ NHỚ 2 CHIỀU (12ms/lần, tối đa 140ms)
+                        var confirmedByMemory = false;
+                        for (var tick = 0; tick < 12; tick++)
                         {
-                            HandlePriceDifferenceModal(_gc, _settings);
-                            yield return new WaitTime(80);
+                            yield return new WaitTime(12);
+
+                            if (IsPriceDifferenceModalOpen(_gc))
+                            {
+                                HandlePriceDifferenceModal(_gc, _settings);
+                                yield return new WaitTime(30);
+                            }
+
+                            // Chiều 1: Kiểm tra xem số lượng item trong túi đồ người chơi đã tăng lên chưa (+1)
+                            if (invCountBefore >= 0)
+                            {
+                                var currentInvCount = GetPlayerInventoryItemCount(_gc);
+                                if (currentInvCount > invCountBefore)
+                                {
+                                    confirmedByMemory = true;
+                                    boughtSuccessfully = true;
+                                    break;
+                                }
+                            }
+
+                            // Chiều 2: Kiểm tra xem item đã rời khỏi bộ nhớ Shop chưa (Không còn trong VisibleInventoryItems)
+                            var remainingItems = adapter.GetAvailableItems(_gc);
+                            var stillInShop = remainingItems != null && remainingItems.Any(r => r != null && 
+                                (r.InventoryItem?.Address == item.InventoryItem?.Address || 
+                                 (r.InventoryItem?.InventPosX == item.InventoryItem?.InventPosX && r.InventoryItem?.InventPosY == item.InventoryItem?.InventPosY)));
+
+                            if (!stillInShop)
+                            {
+                                confirmedByMemory = true;
+                                boughtSuccessfully = true;
+                                break;
+                            }
                         }
 
-                        // 4. KIỂM TRA XEM ITEM ĐÃ ĐƯỢC MUA CHƯA (Item rời khỏi shop)
-                        var remainingItems = adapter.GetAvailableItems(_gc);
-                        var stillInShop = remainingItems != null && remainingItems.Any(r => r != null && 
-                            (r.InventoryItem?.Address == item.InventoryItem?.Address || 
-                             (r.InventoryItem?.InventPosX == item.InventoryItem?.InventPosX && r.InventoryItem?.InventPosY == item.InventoryItem?.InventPosY)));
-
-                        if (!stillInShop)
+                        if (confirmedByMemory)
                         {
-                            boughtSuccessfully = true;
-                            break;
+                            break; // Mua thành công siêu tốc (chỉ mất ~24ms - 36ms)
                         }
 
                         if (attempt < 3)
                         {
-                            LogHelper.Warn($"[THỬ LẠI #{attempt}] Item vẫn còn trong shop (Game lag tiền / chưa nhận click). Đang di chuột đọc lại giá ({item.CostString}) và mua lại...");
-                            yield return new WaitTime(100);
+                            LogHelper.Warn($"[THỬ LẠI #{attempt}] Bộ nhớ xác nhận item chưa rời shop (Game lag/chưa nhận click). Đang di chuột đọc lại giá ({item.CostString}) và mua lại...");
+                            yield return new WaitTime(40);
                         }
                     }
 
@@ -203,6 +228,27 @@ public class PurchaseExecutor
             var statusStr = RequestStop ? "STOPPED" : "COMPLETED";
             NotifyBridge(statusStr, totalPurchasedCount, purchasedDetails);
         }
+    }
+
+    public static int GetPlayerInventoryItemCount(GameController gc)
+    {
+        try
+        {
+            if (gc == null) return -1;
+            var slotItems = InventorySpaceChecker.GetPlayerInventorySlotItems(gc);
+            if (slotItems != null && slotItems.Count >= 0)
+            {
+                return slotItems.Count;
+            }
+
+            var uiItems = InventorySpaceChecker.GetPlayerInventoryItems(gc);
+            if (uiItems != null && uiItems.Count >= 0)
+            {
+                return uiItems.Count;
+            }
+        }
+        catch { }
+        return -1;
     }
 
     private static void NotifyBridge(string status, int itemsBought, List<string>? details)
