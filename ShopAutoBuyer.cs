@@ -189,6 +189,28 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 LogHelper.Info($">>> [KHU VỰC MỚI] Đã chuyển khu vực ({currentAreaHash}). Hủy toàn bộ tác vụ mua cũ và sẵn sàng cho Shop mới! <<<");
             }
 
+            // TỰ ĐỘNG RESET CỜ KHI SHOP MỚI MỞ HOẶC KHI PYTHON GỬI LỆNH TRAVEL MỚI
+            if (!_wasShopOpenLastFrame && isShopOpen)
+            {
+                _hasScannedCurrentShop = false;
+            }
+
+            // Kiểm tra tín hiệu từ Python Live Search qua trade_bridge.json
+            try
+            {
+                var bridgeFile = BridgePathHelper.GetBridgeFilePath();
+                if (File.Exists(bridgeFile))
+                {
+                    var bridgeText = File.ReadAllText(bridgeFile);
+                    if (bridgeText.Contains("\"TRAVELING\"") && _hasScannedCurrentShop)
+                    {
+                        _hasScannedCurrentShop = false;
+                        PurchaseExecutor.ScannedPriceCache.Clear();
+                    }
+                }
+            }
+            catch { }
+
             var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
 
             // 3. TU DONG PHAT HIEN VA BAM NUT [ OK ] KHI XUAT HIEN HOP THOAI CANH BAO GIA (Throttle moi 200ms de toi uu 100% FPS)
