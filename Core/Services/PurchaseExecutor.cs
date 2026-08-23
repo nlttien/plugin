@@ -79,26 +79,40 @@ public class PurchaseExecutor
             // Chờ 80ms ban đầu để server PoE nạp đầy đủ danh sách ô đồ và tiền tệ vào RAM
             yield return new WaitTime(80);
 
-            // DYNAMIC LIVE-QUEUE SCAN: Quét liên tục trực tiếp từ bộ nhớ RAM cho tới khi mua sạch 100% item thỏa mãn
-            while (true)
+            var totalTabs = Math.Max(1, adapter.GetTabCount(_gc));
+
+            // QUÉT QUA TẤT CẢ CÁC TAB CỦA SHOP (Hỗ trợ người bán chia đồ thành nhiều tab)
+            for (var tabIdx = 0; tabIdx < totalTabs; tabIdx++)
             {
                 if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
                 if (InventorySpaceChecker.GetFreeSlotsCount(_gc) <= 0) break;
 
-                var liveItems = adapter.GetAvailableItems(_gc);
-                if (liveItems == null || liveItems.Count == 0) break;
-
-                var matchingItems = liveItems
-                    .Where(i => i != null && (_settings.IsTimelessMode() ? (i.IsTimelessJewel && i.Width == 1 && i.Height == 1 && i.Sockets == 0 && !IsOccludedByLargerItem(i, liveItems) && ItemFilterEngine.MatchesTimelessCandidate(i, _settings)) : ItemFilterEngine.MatchesAnyRule(i, activeRules)))
-                    .OrderBy(i => i.ScreenRect.Top)
-                    .ThenBy(i => i.ScreenRect.Left)
-                    .ToList();
-
-                // Nếu shop đã hết sạch item thỏa mãn -> Kết thúc chu kỳ hoàn hảo!
-                if (matchingItems.Count == 0 || consecutiveUnbuyableCount >= matchingItems.Count)
+                if (totalTabs > 1)
                 {
-                    break;
+                    adapter.SwitchToTab(_gc, tabIdx);
+                    yield return new WaitTime(80);
                 }
+
+                // DYNAMIC LIVE-QUEUE SCAN: Quét liên tục trực tiếp từ bộ nhớ RAM cho tới khi mua sạch item trong tab hiện tại
+                while (true)
+                {
+                    if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
+                    if (InventorySpaceChecker.GetFreeSlotsCount(_gc) <= 0) break;
+
+                    var liveItems = adapter.GetAvailableItems(_gc);
+                    if (liveItems == null || liveItems.Count == 0) break;
+
+                    var matchingItems = liveItems
+                        .Where(i => i != null && (_settings.IsTimelessMode() ? (i.IsTimelessJewel && i.Width == 1 && i.Height == 1 && i.Sockets == 0 && !IsOccludedByLargerItem(i, liveItems) && ItemFilterEngine.MatchesTimelessCandidate(i, _settings)) : ItemFilterEngine.MatchesAnyRule(i, activeRules)))
+                        .OrderBy(i => i.ScreenRect.Top)
+                        .ThenBy(i => i.ScreenRect.Left)
+                        .ToList();
+
+                    // Nếu tab hiện tại không còn item thỏa mãn -> Chuyển tab tiếp theo
+                    if (matchingItems.Count == 0 || consecutiveUnbuyableCount >= matchingItems.Count)
+                    {
+                        break;
+                    }
 
                 // Luôn lấy món đồ đầu tiên trong danh sách còn lại
                 var item = matchingItems[0];
@@ -197,7 +211,8 @@ public class PurchaseExecutor
                 }
             }
         }
-        finally
+    }
+    finally
         {
             IsRunning = false;
             
