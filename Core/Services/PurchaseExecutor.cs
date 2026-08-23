@@ -169,15 +169,6 @@ public class PurchaseExecutor
             IsRunning = false;
             var statusStr = RequestStop ? "STOPPED" : "COMPLETED";
             NotifyBridge(statusStr, totalPurchasedCount, purchasedDetails);
-
-            // Bấm Space đóng cửa sổ Shop ngay tức thì (10ms)
-            try
-            {
-                Input.KeyDown(Keys.Space);
-                Thread.Sleep(10);
-                Input.KeyUp(Keys.Space);
-            }
-            catch { }
         }
     }
 
