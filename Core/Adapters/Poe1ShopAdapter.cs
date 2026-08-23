@@ -109,13 +109,20 @@ public class Poe1ShopAdapter : IShopAdapter
 
                     // Base Component
                     var baseComp = itemEntity.GetComponent<Base>();
-                    if (baseComp != null)
+                    if (baseComp != null && !string.IsNullOrWhiteSpace(baseComp.Name))
                     {
-                        itemInfo.BaseName = baseComp.Name ?? string.Empty;
+                        itemInfo.BaseName = baseComp.Name;
                     }
                     else
                     {
                         itemInfo.BaseName = ParseBaseNameFromPath(itemInfo.ItemPath);
+                    }
+
+                    // Tự động map tên chuẩn cho Eldritch / Boss Invitations nếu chưa đúng
+                    var mappedInvitation = ParseBaseNameFromPath(itemInfo.ItemPath);
+                    if (!string.IsNullOrEmpty(mappedInvitation) && mappedInvitation.Contains("Invitation", StringComparison.OrdinalIgnoreCase))
+                    {
+                        itemInfo.BaseName = mappedInvitation;
                     }
 
                     // Mods Component
@@ -124,10 +131,14 @@ public class Poe1ShopAdapter : IShopAdapter
                     {
                         itemInfo.Rarity = modsComp.ItemRarity;
                         itemInfo.ItemLevel = modsComp.ItemLevel;
-                        itemInfo.Name = modsComp.UniqueName ?? itemInfo.BaseName;
+                        itemInfo.Name = !string.IsNullOrWhiteSpace(modsComp.UniqueName) ? modsComp.UniqueName : itemInfo.BaseName;
 
                         // Check Timeless Jewel identification strictly
                         CheckAndParseTimelessJewel(itemInfo, modsComp);
+                    }
+                    else
+                    {
+                        itemInfo.Name = itemInfo.BaseName;
                     }
 
                     // Quality Component
@@ -472,9 +483,38 @@ public class Poe1ShopAdapter : IShopAdapter
         return false;
     }
 
-    private static string ParseBaseNameFromPath(string path)
+    public static string ParseBaseNameFromPath(string path)
     {
         if (string.IsNullOrEmpty(path)) return string.Empty;
+
+        // Eldritch / Boss Invitations specific mapping
+        if (path.Contains("ExarchInvitation", StringComparison.OrdinalIgnoreCase) || 
+            path.Contains("Incandescent", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("BossKeys/ExarchKey", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Incandescent Invitation";
+        }
+        if (path.Contains("EaterInvitation", StringComparison.OrdinalIgnoreCase) || 
+            path.Contains("Screaming", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("BossKeys/EaterKey", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Screaming Invitation";
+        }
+        if (path.Contains("BlackStar", StringComparison.OrdinalIgnoreCase) || 
+            path.Contains("Polaric", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Polaric Invitation";
+        }
+        if (path.Contains("Hunger", StringComparison.OrdinalIgnoreCase) || 
+            path.Contains("Writhing", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Writhing Invitation";
+        }
+        if (path.Contains("MavenInvitation", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Maven's Invitation";
+        }
+
         var lastSlash = path.LastIndexOf('/');
         return lastSlash >= 0 ? path.Substring(lastSlash + 1) : path;
     }

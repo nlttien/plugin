@@ -252,14 +252,17 @@ public static class ItemFilterEngine
             var itemName = item.DisplayName ?? string.Empty;
             var itemBase = item.BaseName ?? string.Empty;
             var itemPath = item.ItemPath ?? string.Empty;
+            var tooltip = item.TooltipFullText ?? string.Empty;
 
             var matches = filters.Any(f =>
             {
                 var trimmed = f.Trim();
-                return itemName.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ||
-                       itemBase.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ||
-                       itemPath.Contains(trimmed.Replace(" ", ""), StringComparison.OrdinalIgnoreCase) ||
-                       itemPath.Contains(trimmed, StringComparison.OrdinalIgnoreCase);
+                if (string.IsNullOrWhiteSpace(trimmed)) return false;
+
+                return (!string.IsNullOrEmpty(itemName) && itemName.Contains(trimmed, StringComparison.OrdinalIgnoreCase)) ||
+                       (!string.IsNullOrEmpty(itemBase) && itemBase.Contains(trimmed, StringComparison.OrdinalIgnoreCase)) ||
+                       (!string.IsNullOrEmpty(itemPath) && itemPath.Contains(trimmed.Replace(" ", ""), StringComparison.OrdinalIgnoreCase)) ||
+                       (!string.IsNullOrEmpty(tooltip) && tooltip.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
             });
 
             if (!matches) return false;

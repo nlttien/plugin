@@ -278,9 +278,37 @@ public class PurchaseExecutor
 
             if (texts.Count > 0)
             {
-                Poe1ShopAdapter.ParseCostFromTexts(texts, item);
-
                 var fullStr = string.Join(" ", texts);
+                item.TooltipFullText = fullStr;
+
+                // Cập nhật tên chính xác từ nội dung Tooltip
+                if (fullStr.Contains("Incandescent Invitation", StringComparison.OrdinalIgnoreCase))
+                {
+                    item.Name = "Incandescent Invitation";
+                    item.BaseName = "Incandescent Invitation";
+                }
+                else if (fullStr.Contains("Screaming Invitation", StringComparison.OrdinalIgnoreCase))
+                {
+                    item.Name = "Screaming Invitation";
+                    item.BaseName = "Screaming Invitation";
+                }
+                else if (fullStr.Contains("Polaric Invitation", StringComparison.OrdinalIgnoreCase))
+                {
+                    item.Name = "Polaric Invitation";
+                    item.BaseName = "Polaric Invitation";
+                }
+                else if (fullStr.Contains("Writhing Invitation", StringComparison.OrdinalIgnoreCase))
+                {
+                    item.Name = "Writhing Invitation";
+                    item.BaseName = "Writhing Invitation";
+                }
+                else if (fullStr.Contains("Maven's Invitation", StringComparison.OrdinalIgnoreCase))
+                {
+                    item.Name = "Maven's Invitation";
+                    item.BaseName = "Maven's Invitation";
+                }
+
+                Poe1ShopAdapter.ParseCostFromTexts(texts, item);
 
                 // 2. Cập nhật Gold nếu có
                 var goldMatch = Regex.Match(fullStr, @"([\d,]+)\s*Gold", RegexOptions.IgnoreCase);

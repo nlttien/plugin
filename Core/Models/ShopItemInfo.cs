@@ -27,6 +27,7 @@ public class ShopItemInfo
 
     public CurrencyCost? Cost { get; set; }
     public string CostString { get; set; } = string.Empty;
+    public string TooltipFullText { get; set; } = string.Empty;
 
     public int TabIndex { get; set; } = 0;
     public string TabName { get; set; } = string.Empty;
