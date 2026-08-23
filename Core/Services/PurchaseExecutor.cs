@@ -141,7 +141,7 @@ public class PurchaseExecutor
                     // 3. Ctrl+Click mua với phím Ctrl nhận chắc chắn 100% (8ms Ctrl buffer, 20ms hold)
                     MouseHelper.FastCtrlLeftClickAt(clickTarget, 0, 20);
 
-                    // 4. MICRO-POLLING KIỂM TRA TRẠNG THÁI BỘ NHỚ (15ms/lần, tối đa 150ms)
+                    // 4. KIỂM TRA TRẠNG THÁI BỘ NHỚ: Chỉ xác nhận khi item THỰC SỰ đã vào túi đồ (+1 item)
                     var confirmedByMemory = false;
                     for (var tick = 0; tick < 10; tick++)
                     {
@@ -153,7 +153,7 @@ public class PurchaseExecutor
                             yield return new WaitTime(30);
                         }
 
-                        // Chiều 1 (Chính xác tuyệt đối): Số lượng item trong túi đồ nhân vật đã tăng lên (+1)
+                        // Kiểm tra thực tế số lượng item trong túi đồ nhân vật (Ground Truth)
                         var currentInvCount = GetPlayerInventoryItemCount(_gc);
                         if (invCountBefore >= 0 && currentInvCount > invCountBefore)
                         {
@@ -161,37 +161,19 @@ public class PurchaseExecutor
                             boughtSuccessfully = true;
                             break;
                         }
-
-                        // Chiều 2: Shop vẫn đang mở VÀ item đã biến mất khỏi danh sách ô đồ của Shop
-                        if (adapter.IsShopOpen(_gc))
-                        {
-                            var rem = adapter.GetAvailableItems(_gc);
-                            if (rem != null)
-                            {
-                                var itemStillInShop = rem.Any(r => r != null && 
-                                    (r.InventoryItem?.Address == item.InventoryItem?.Address || 
-                                     (r.InventoryItem?.InventPosX == item.InventoryItem?.InventPosX && r.InventoryItem?.InventPosY == item.InventoryItem?.InventPosY)));
-
-                                if (!itemStillInShop)
-                                {
-                                    confirmedByMemory = true;
-                                    boughtSuccessfully = true;
-                                    break;
-                                }
-                            }
-                        }
                     }
 
                     if (confirmedByMemory)
                     {
                         consecutiveUnbuyableCount = 0;
-                        break; // Mua thành công món này
+                        break; // Mua thành công món này!
                     }
 
+                    // NẾU CHƯA VÀO TÚI ĐỒ (Game báo thiếu tiền / trễ sync) -> BẮT BUỘC PHẢI RETRY VỚI DELAY 500MS
                     if (attempt < 4)
                     {
-                        LogHelper.Warn($"[THỬ LẠI #{attempt}] Mua chưa nhận / lag tiền. Đợi đúng 500ms đồng bộ tiền và mua lại...");
-                        yield return new WaitTime(500); // SET RETRY DELAY ĐÚNG 500MS
+                        LogHelper.Warn($"[THỬ LẠI #{attempt}] Item chưa vào túi (Game báo chưa nhận tiền). Đang đợi 500ms đồng bộ tiền và mua lại...");
+                        yield return new WaitTime(500); // CHỜ ĐÚNG 500MS VÀ THỬ LẠI
                     }
                 }
 
