@@ -200,8 +200,23 @@ public class PurchaseExecutor
         finally
         {
             IsRunning = false;
-            var statusStr = RequestStop ? "STOPPED" : "COMPLETED";
-            NotifyBridge(statusStr, totalPurchasedCount, purchasedDetails);
+            
+            // Nếu hành trang đầy (hoặc <= MinFreeSlotsThreshold), tự động đóng shop và chuyển trạng thái DEPOSITING
+            var freeSlots = InventorySpaceChecker.GetFreeSlotsCount(_gc);
+            var threshold = _settings?.MinFreeSlotsThreshold?.Value ?? 2;
+            if (_settings?.AutoDepositWhenFull?.Value == true && freeSlots <= threshold)
+            {
+                LogHelper.Warn($"[HÀNH TRANG ĐẦY] Còn {freeSlots} ô trống (<= {threshold}). Đang tự động đóng Shop và kích hoạt cất đồ vào rương...");
+                Input.KeyDown(Keys.Space);
+                Thread.Sleep(30);
+                Input.KeyUp(Keys.Space);
+                NotifyBridge("DEPOSITING", totalPurchasedCount, purchasedDetails);
+            }
+            else
+            {
+                var statusStr = RequestStop ? "STOPPED" : "COMPLETED";
+                NotifyBridge(statusStr, totalPurchasedCount, purchasedDetails);
+            }
         }
     }
 

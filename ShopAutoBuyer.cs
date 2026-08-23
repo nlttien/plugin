@@ -213,11 +213,22 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
-            // 6. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG (Tuyet doi khong tu bien ve khi dang mo Shop hoac dang mua do)
-            var shouldDeposit = !isShopOpen && !isRunning &&
-                                ((Settings?.AutoDepositWhenFull?.Value == true && _stashDepositService != null && _stashDepositService.NeedsDeposit()) ||
-                                 (Settings?.TestDepositAfterEveryPurchase?.Value == true));
-            if (!_isPausedByUser && shouldDeposit && _stashDepositService != null && !_stashDepositService.IsDepositing)
+            // 6. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG (Tu dong dong shop neu con dang mo)
+            var needsDeposit = _stashDepositService != null && _stashDepositService.NeedsDeposit();
+            if (!_isPausedByUser && needsDeposit && !isRunning && !_stashDepositService.IsDepositing)
+            {
+                if (isShopOpen)
+                {
+                    Input.KeyDown(Keys.Space);
+                    Thread.Sleep(30);
+                    Input.KeyUp(Keys.Space);
+                }
+                else
+                {
+                    StartDepositCoroutine();
+                }
+            }
+            else if (!_isPausedByUser && Settings?.TestDepositAfterEveryPurchase?.Value == true && !isShopOpen && !isRunning && _stashDepositService != null && !_stashDepositService.IsDepositing)
             {
                 StartDepositCoroutine();
             }
