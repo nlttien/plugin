@@ -672,81 +672,114 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     {
         if (Settings == null) return;
 
-        // 1. TỔNG QUAN & BẬT TẮT
+        // 1. TONG QUAN & DIEU KHIEN (GENERAL & CONTROLS)
         var enable = Settings.Enable.Value;
-        if (ImGui.Checkbox("Bật Plugin (Enable)", ref enable))
+        if (ImGui.Checkbox("Bat Plugin (Enable)", ref enable))
             Settings.Enable.Value = enable;
 
+        ImGui.SameLine();
         var pause = Settings.PauseAutoBuyer.Value;
-        if (ImGui.Checkbox("TẠM DỪNG TOÀN BỘ (PAUSE / STOP) [F7]", ref pause))
+        if (ImGui.Checkbox("TAM DUNG TOAN BO (PAUSE / STOP) [F7]", ref pause))
         {
             Settings.PauseAutoBuyer.Value = pause;
             _isPausedByUser = pause;
             if (pause) StopAllPurchases();
         }
 
-        ImGui.Separator();
-        ImGui.TextColored(new System.Numerics.Vector4(1.0f, 0.85f, 0.2f, 1.0f), "=== BỘ LỌC GIÁ (NHẬP SỐ TRỰC TIẾP TỪ BÀN PHÍM) ===");
-
-        // 2. GIÁ CHAOS & DIVINE (TRỰC TIẾP NHẬP SỐ BẰNG BÀN PHÍM)
-        var buyChaos = Settings.BuyChaosPrice.Value;
-        if (ImGui.Checkbox("Lọc Theo Giá Chaos Orb", ref buyChaos))
-            Settings.BuyChaosPrice.Value = buyChaos;
-
-        if (buyChaos)
+        if (ImGui.Button("DUNG KHAN CAP (EMERGENCY STOP)"))
         {
-            var minChaos = Settings.MinChaosPrice.Value;
-            ImGui.SetNextItemWidth(140);
-            if (ImGui.InputInt("Giá Chaos Tối Thiểu (Min Chaos)", ref minChaos, 1, 10))
+            _isPausedByUser = true;
+            Settings.PauseAutoBuyer.Value = true;
+            StopAllPurchases();
+            NotifyWebTradeStatus("STOPPED");
+            LogHelper.Warn(">>> [ShopAutoBuyer] NUT DUNG KHAN CAP DA DUOC BAM! <<<");
+        }
+
+        // 2. BO LOC GIA (PRICE FILTERS - NHAP SO TRUC TIEP)
+        if (ImGui.CollapsingHeader("1. BO LOC GIA (PRICE FILTERS - NHAP SO TRUC TIEP)", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            var buyChaos = Settings.BuyChaosPrice.Value;
+            if (ImGui.Checkbox("Loc Theo Gia Chaos Orb", ref buyChaos))
+                Settings.BuyChaosPrice.Value = buyChaos;
+
+            if (buyChaos)
             {
-                Settings.MinChaosPrice.Value = Math.Max(0, minChaos);
+                var minChaos = Settings.MinChaosPrice.Value;
+                ImGui.SetNextItemWidth(120);
+                if (ImGui.InputInt("Gia Chaos Toi Thieu (Min Chaos)", ref minChaos, 1, 10))
+                    Settings.MinChaosPrice.Value = Math.Max(0, minChaos);
+
+                var maxChaos = Settings.MaxChaosPrice.Value;
+                ImGui.SetNextItemWidth(120);
+                if (ImGui.InputInt("Gia Chaos Toi Da (Max Chaos)", ref maxChaos, 1, 10))
+                    Settings.MaxChaosPrice.Value = Math.Max(0, maxChaos);
             }
 
-            var maxChaos = Settings.MaxChaosPrice.Value;
-            ImGui.SetNextItemWidth(140);
-            if (ImGui.InputInt("Giá Chaos Tối Đa (Max Chaos)", ref maxChaos, 1, 10))
+            var buyDivine = Settings.BuyDivinePrice.Value;
+            if (ImGui.Checkbox("Mua Theo Gia Divine Orb", ref buyDivine))
+                Settings.BuyDivinePrice.Value = buyDivine;
+
+            if (buyDivine)
             {
-                Settings.MaxChaosPrice.Value = Math.Max(0, maxChaos);
+                var maxDivine = Settings.MaxDivinePrice.Value;
+                ImGui.SetNextItemWidth(120);
+                if (ImGui.InputInt("Gia Divine Toi Da (0 = Khong mua bang Divine)", ref maxDivine, 1, 5))
+                    Settings.MaxDivinePrice.Value = Math.Max(0, maxDivine);
             }
+
+            var maxGold = Settings.MaxGoldPrice.Value;
+            ImGui.SetNextItemWidth(120);
+            if (ImGui.InputInt("Gia Gold Toi Da", ref maxGold, 500, 5000))
+                Settings.MaxGoldPrice.Value = Math.Max(0, maxGold);
         }
 
-        var buyDivine = Settings.BuyDivinePrice.Value;
-        if (ImGui.Checkbox("Mua Theo Giá Divine Orb", ref buyDivine))
-            Settings.BuyDivinePrice.Value = buyDivine;
-
-        if (buyDivine)
+        // 3. DANH SACH VAT PHAM & WHITELIST (ITEM FILTERS)
+        if (ImGui.CollapsingHeader("2. DANH SACH VAT PHAM CAN MUA (ITEM FILTERS)", ImGuiTreeNodeFlags.DefaultOpen))
         {
-            var maxDivine = Settings.MaxDivinePrice.Value;
-            ImGui.SetNextItemWidth(140);
-            if (ImGui.InputInt("Giá Divine Tối Đa (0 = Không mua bằng Divine)", ref maxDivine, 1, 5))
-            {
-                Settings.MaxDivinePrice.Value = Math.Max(0, maxDivine);
-            }
+            var baseNames = Settings.BaseNamesFilter.Value ?? "";
+            ImGui.SetNextItemWidth(300);
+            if (ImGui.InputText("Ten Vat Pham Can Mua (VD: Incandescent Invitation)", ref baseNames, 256))
+                Settings.BaseNamesFilter.Value = baseNames;
+
+            var buyNorm = Settings.BuyNormal.Value;
+            if (ImGui.Checkbox("Buy Normal", ref buyNorm)) Settings.BuyNormal.Value = buyNorm;
+            ImGui.SameLine();
+            var buyMag = Settings.BuyMagic.Value;
+            if (ImGui.Checkbox("Buy Magic", ref buyMag)) Settings.BuyMagic.Value = buyMag;
+            ImGui.SameLine();
+            var buyRar = Settings.BuyRare.Value;
+            if (ImGui.Checkbox("Buy Rare", ref buyRar)) Settings.BuyRare.Value = buyRar;
+            ImGui.SameLine();
+            var buyUniq = Settings.BuyUnique.Value;
+            if (ImGui.Checkbox("Buy Unique", ref buyUniq)) Settings.BuyUnique.Value = buyUniq;
+
+            var minIlvl = Settings.MinItemLevel.Value;
+            ImGui.SetNextItemWidth(100);
+            if (ImGui.InputInt("Min Item Level", ref minIlvl)) Settings.MinItemLevel.Value = Math.Clamp(minIlvl, 0, 100);
+
+            var minQ = Settings.MinQuality.Value;
+            ImGui.SetNextItemWidth(100);
+            if (ImGui.InputInt("Min Quality", ref minQ)) Settings.MinQuality.Value = Math.Clamp(minQ, 0, 30);
+
+            var minSock = Settings.MinSockets.Value;
+            ImGui.SetNextItemWidth(100);
+            if (ImGui.InputInt("Min Sockets", ref minSock)) Settings.MinSockets.Value = Math.Clamp(minSock, 0, 6);
+
+            var minLnk = Settings.MinLinks.Value;
+            ImGui.SetNextItemWidth(100);
+            if (ImGui.InputInt("Min Links", ref minLnk)) Settings.MinLinks.Value = Math.Clamp(minLnk, 0, 6);
+
+            var buyRgb = Settings.BuyRgbChromatic.Value;
+            if (ImGui.Checkbox("Mua 3 Mau RGB Chromatic", ref buyRgb)) Settings.BuyRgbChromatic.Value = buyRgb;
         }
 
-        var maxGold = Settings.MaxGoldPrice.Value;
-        ImGui.SetNextItemWidth(140);
-        if (ImGui.InputInt("Giá Gold Tối Đa", ref maxGold, 500, 5000))
+        // 4. TIMELESS JEWEL SETTINGS
+        if (ImGui.CollapsingHeader("3. CHE DO TIMELESS JEWEL", ImGuiTreeNodeFlags.None))
         {
-            Settings.MaxGoldPrice.Value = Math.Max(0, maxGold);
-        }
+            var onlyTimeless = Settings.OnlyBuyTimelessJewels.Value;
+            if (ImGui.Checkbox("Che Do Chuyen Mua Timeless Jewel", ref onlyTimeless))
+                Settings.OnlyBuyTimelessJewels.Value = onlyTimeless;
 
-        ImGui.Separator();
-        ImGui.TextColored(new System.Numerics.Vector4(0.4f, 0.9f, 1.0f, 1.0f), "=== TÊN VẬT PHẨM & BỘ LỌC ===");
-
-        var baseNames = Settings.BaseNamesFilter.Value ?? "";
-        ImGui.SetNextItemWidth(260);
-        if (ImGui.InputText("Tên Vật Phẩm Cần Mua", ref baseNames, 256))
-        {
-            Settings.BaseNamesFilter.Value = baseNames;
-        }
-
-        var onlyTimeless = Settings.OnlyBuyTimelessJewels.Value;
-        if (ImGui.Checkbox("Chế Độ Chuyên Mua Timeless Jewel", ref onlyTimeless))
-            Settings.OnlyBuyTimelessJewels.Value = onlyTimeless;
-
-        if (onlyTimeless)
-        {
             var buyBrutal = Settings.BuyBrutalRestraint.Value;
             if (ImGui.Checkbox("Mua Brutal Restraint", ref buyBrutal)) Settings.BuyBrutalRestraint.Value = buyBrutal;
             ImGui.SameLine();
@@ -764,33 +797,141 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
             var leader = Settings.LeaderFilter.Value ?? "";
             ImGui.SetNextItemWidth(200);
-            if (ImGui.InputText("Lọc Theo Tướng (Leader)", ref leader, 128)) Settings.LeaderFilter.Value = leader;
+            if (ImGui.InputText("Loc Theo Ten Tuong (Leader Filter)", ref leader, 128)) Settings.LeaderFilter.Value = leader;
 
             var seeds = Settings.SpecificSeeds.Value ?? "";
             ImGui.SetNextItemWidth(200);
-            if (ImGui.InputText("Lọc Theo Seed Cụ Thể (VD: 3693, 5834)", ref seeds, 256)) Settings.SpecificSeeds.Value = seeds;
+            if (ImGui.InputText("Loc Theo Seed Cu The (VD: 3693, 5834)", ref seeds, 256)) Settings.SpecificSeeds.Value = seeds;
         }
 
-        ImGui.Separator();
-        ImGui.TextColored(new System.Numerics.Vector4(0.8f, 1.0f, 0.4f, 1.0f), "=== ĐỘ TRỄ & TỰ ĐỘNG CẤT ĐỒ ===");
+        // 5. VE HIDEOUT & CAT DO VAO RUONG (STASH DEPOSIT)
+        if (ImGui.CollapsingHeader("4. VE HIDEOUT & CAT DO VAO RUONG (STASH DEPOSIT)", ImGuiTreeNodeFlags.None))
+        {
+            var autoDeposit = Settings.AutoDepositWhenFull.Value;
+            if (ImGui.Checkbox("Tu Dong Ve Cat Do Khi Day Hanh Trang", ref autoDeposit))
+                Settings.AutoDepositWhenFull.Value = autoDeposit;
 
-        var minDelay = Settings.MinDelayMs.Value;
-        ImGui.SetNextItemWidth(140);
-        if (ImGui.InputInt("Độ Trễ Tối Thiểu (Min Delay Ms)", ref minDelay, 5, 20))
-            Settings.MinDelayMs.Value = Math.Clamp(minDelay, 20, 2000);
+            var targetTab = Settings.TargetStashTabName.Value ?? "";
+            ImGui.SetNextItemWidth(140);
+            if (ImGui.InputText("Ten Tab Ruong Can Cat (VD: boss)", ref targetTab, 64))
+                Settings.TargetStashTabName.Value = targetTab;
 
-        var maxDelay = Settings.MaxDelayMs.Value;
-        ImGui.SetNextItemWidth(140);
-        if (ImGui.InputInt("Độ Trễ Tối Đa (Max Delay Ms)", ref maxDelay, 5, 20))
-            Settings.MaxDelayMs.Value = Math.Clamp(maxDelay, 30, 3000);
+            var onlyTarget = Settings.OnlyDepositToTargetTab.Value;
+            if (ImGui.Checkbox("Chi Cat Vao Dung Tab Nay (Khong doi tab khac)", ref onlyTarget))
+                Settings.OnlyDepositToTargetTab.Value = onlyTarget;
 
-        var autoDeposit = Settings.AutoDepositWhenFull.Value;
-        if (ImGui.Checkbox("Tự Động Về Cất Đồ Khi Đầy Hành Trang", ref autoDeposit))
-            Settings.AutoDepositWhenFull.Value = autoDeposit;
+            var minSlots = Settings.MinFreeSlotsThreshold.Value;
+            ImGui.SetNextItemWidth(100);
+            if (ImGui.InputInt("Nguong O Trong Toi Thieu (Con duoi X o thi ve cat)", ref minSlots))
+                Settings.MinFreeSlotsThreshold.Value = Math.Clamp(minSlots, 1, 10);
 
-        var targetTab = Settings.TargetStashTabName.Value ?? "";
-        ImGui.SetNextItemWidth(140);
-        if (ImGui.InputText("Tên Tab Rương Cần Cất (VD: boss)", ref targetTab, 64))
-            Settings.TargetStashTabName.Value = targetTab;
+            var useStashie = Settings.UseStashiePlugin.Value;
+            if (ImGui.Checkbox("Dung Plugin Stashie De Cat Do (Phim Tat F3)", ref useStashie))
+                Settings.UseStashiePlugin.Value = useStashie;
+
+            var autoNpc = Settings.AutoInteractHideoutNpc.Value;
+            if (ImGui.Checkbox("Tu Dong Bam NPC/Faustus Khi Den Hideout Nguoi Ban", ref autoNpc))
+                Settings.AutoInteractHideoutNpc.Value = autoNpc;
+
+            if (ImGui.Button("TEST NGAY: Chay thu ve Hideout & Cat do (F6)"))
+            {
+                LogHelper.Warn(">>> [TEST MODE] BAN DA BAM NUT TEST VE HIDEOUT & CAT DO! <<<");
+                StartDepositCoroutine();
+            }
+
+            var testEvery = Settings.TestDepositAfterEveryPurchase.Value;
+            if (ImGui.Checkbox("Che Do Test: Luon ve cat do sau moi chuyen mua", ref testEvery))
+                Settings.TestDepositAfterEveryPurchase.Value = testEvery;
+        }
+
+        // 6. DO TRE, TOA DO & GIAO DIEN (SPEED & COORDINATES)
+        if (ImGui.CollapsingHeader("5. DO TRE & TOA DO (SPEED & COORDINATES)", ImGuiTreeNodeFlags.None))
+        {
+            var minDelay = Settings.MinDelayMs.Value;
+            ImGui.SetNextItemWidth(120);
+            if (ImGui.InputInt("Do Tre Toi Thieu (Min Delay Ms)", ref minDelay, 5, 20))
+                Settings.MinDelayMs.Value = Math.Clamp(minDelay, 20, 2000);
+
+            var maxDelay = Settings.MaxDelayMs.Value;
+            ImGui.SetNextItemWidth(120);
+            if (ImGui.InputInt("Do Tre Toi Da (Max Delay Ms)", ref maxDelay, 5, 20))
+                Settings.MaxDelayMs.Value = Math.Clamp(maxDelay, 30, 3000);
+
+            var showOverlay = Settings.ShowStatusBox.Value;
+            if (ImGui.Checkbox("Hien Bang Thong Tin Trang Thai (Overlay Box)", ref showOverlay))
+                Settings.ShowStatusBox.Value = showOverlay;
+
+            var highlightOnly = Settings.HighlightOnlyMode.Value;
+            if (ImGui.Checkbox("Che Do Chi Highlight (Khong Mua)", ref highlightOnly))
+                Settings.HighlightOnlyMode.Value = highlightOnly;
+
+            var scanAll = Settings.ScanAllTabs.Value;
+            if (ImGui.Checkbox("Quet Tat Ca Cac Tab Trong Shop", ref scanAll))
+                Settings.ScanAllTabs.Value = scanAll;
+
+            var okX = Settings.OkButtonX.Value;
+            var okY = Settings.OkButtonY.Value;
+            ImGui.SetNextItemWidth(80);
+            if (ImGui.InputInt("Toa Do Nut OK - X", ref okX)) Settings.OkButtonX.Value = okX;
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(80);
+            if (ImGui.InputInt("Y##okY", ref okY)) Settings.OkButtonY.Value = okY;
+
+            var depX = Settings.DepositButtonX.Value;
+            var depY = Settings.DepositButtonY.Value;
+            ImGui.SetNextItemWidth(80);
+            if (ImGui.InputInt("Toa Do Nut Cat Nhanh - X", ref depX)) Settings.DepositButtonX.Value = depX;
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(80);
+            if (ImGui.InputInt("Y##depY", ref depY)) Settings.DepositButtonY.Value = depY;
+        }
+
+        // 7. RUT DO THEO FILTER (WITHDRAW BY FILTER - F8)
+        if (ImGui.CollapsingHeader("6. RUT DO THEO FILTER (WITHDRAW BY FILTER - F8)", ImGuiTreeNodeFlags.None))
+        {
+            var filterStr = Settings.StashSearchFilter.Value ?? "";
+            ImGui.SetNextItemWidth(300);
+            if (ImGui.InputText("Chuoi Filter Nhap Vao Ruong", ref filterStr, 256))
+                Settings.StashSearchFilter.Value = filterStr;
+
+            var autoWithdraw = Settings.AutoWithdrawHighlightedItems.Value;
+            if (ImGui.Checkbox("Tu Dong Ctrl-Click Rut Cac Mon Highlight", ref autoWithdraw))
+                Settings.AutoWithdrawHighlightedItems.Value = autoWithdraw;
+
+            if (ImGui.Button("CHAY RUT DO THEO FILTER NGAY (F8)"))
+            {
+                LogHelper.Warn(">>> [WITHDRAW FILTER] BAN DA BAM NUT RUT DO THEO FILTER TRONG MENU! <<<");
+                StartWithdrawByFilterCoroutine();
+            }
+        }
+
+        // 8. CAU HINH WEB TRADE (AUTOBUYPOE)
+        if (ImGui.CollapsingHeader("7. CAU HINH WEB TRADE (AUTOBUYPOE)", ImGuiTreeNodeFlags.None))
+        {
+            var tradeUrl = Settings.TargetTradeUrl.Value ?? "";
+            ImGui.SetNextItemWidth(350);
+            if (ImGui.InputText("Link Tim Kiem Web Trade (TARGET_URL)", ref tradeUrl, 512))
+                Settings.TargetTradeUrl.Value = tradeUrl;
+
+            var email = Settings.PoeEmail.Value ?? "";
+            ImGui.SetNextItemWidth(250);
+            if (ImGui.InputText("Email Dang Nhap PoE", ref email, 128))
+                Settings.PoeEmail.Value = email;
+
+            var pwd = Settings.PoePassword.Value ?? "";
+            ImGui.SetNextItemWidth(250);
+            if (ImGui.InputText("Mat Khau PoE", ref pwd, 128, ImGuiInputTextFlags.Password))
+                Settings.PoePassword.Value = pwd;
+
+            var startIdx = Settings.SellerStartIndex.Value;
+            ImGui.SetNextItemWidth(100);
+            if (ImGui.InputInt("Vi Tri Nguoi Ban Can Mua (0 = Nguoi 1, 2 = Nguoi 3...)", ref startIdx))
+                Settings.SellerStartIndex.Value = Math.Clamp(startIdx, 0, 20);
+
+            if (ImGui.Button("KHOI CHAY / DUNG CHROME WEB TRADE"))
+            {
+                ToggleWebTradeProcess();
+            }
+        }
     }
 }
