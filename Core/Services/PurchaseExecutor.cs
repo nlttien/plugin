@@ -257,6 +257,10 @@ public class PurchaseExecutor
     {
         try
         {
+            // Bắn tín hiệu tức thì qua TCP Socket (0ms)
+            SocketBridgeClient.SendStatus(status, itemsBought, details);
+
+            // Dự phòng ghi file
             var bridgeFile = BridgePathHelper.GetBridgeFilePath();
             var tradeId = "";
             if (File.Exists(bridgeFile))

@@ -1041,6 +1041,10 @@ public class StashDepositService
     {
         try
         {
+            // Bắn tín hiệu tức thì qua TCP Socket (0ms)
+            SocketBridgeClient.SendStatus(status);
+
+            // Dự phòng ghi file
             var bridgeFile = BridgePathHelper.GetBridgeFilePath();
             var json = $"{{\"status\":\"{status}\",\"items_bought\":0,\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
             File.WriteAllText(bridgeFile, json);

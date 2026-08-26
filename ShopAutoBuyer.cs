@@ -46,6 +46,9 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             _purchaseExecutor = new PurchaseExecutor(GameController, Settings, _adapterFactory, _stashDepositService);
         }
 
+        // Khởi động kết nối TCP Socket tới Python Trade Server (127.0.0.1:9876)
+        SocketBridgeClient.Initialize(OnSocketMessageReceived);
+
         // Tu dong chuyen gia tri cu (787, 545) sang toa do chuan xac (750, 575)
         _isPausedByUser = false;
         _hasScannedCurrentShop = false;
@@ -591,10 +594,28 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         catch { }
     }
 
+    private void OnSocketMessageReceived(string message)
+    {
+        try
+        {
+            if (message.Contains("\"TRAVELING\"") || message.Contains("\"RESET\""))
+            {
+                _hasScannedCurrentShop = false;
+                PurchaseExecutor.ScannedPriceCache.Clear();
+                LogHelper.Info("[SOCKET BRIDGE] Đã nhận tín hiệu TRAVELING từ Python -> Reset cờ sẵn sàng quét Shop mới!");
+            }
+        }
+        catch { }
+    }
+
     private static void NotifyWebTradeStatus(string status, int boughtCount = 0)
     {
         try
         {
+            // Bắn tín hiệu tức thì qua TCP Socket (0ms)
+            SocketBridgeClient.SendStatus(status, boughtCount);
+
+            // Dự phòng ghi file
             var bridgeFile = BridgePathHelper.GetBridgeFilePath();
             var json = $"{{\"status\":\"{status}\",\"items_bought\":{boughtCount},\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
             File.WriteAllText(bridgeFile, json);
