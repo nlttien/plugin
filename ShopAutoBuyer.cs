@@ -32,6 +32,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
     private DateTime _lastModalClickTime = DateTime.MinValue;
     private DateTime _lastModalCheckTime = DateTime.MinValue;
     private DateTime _lastNpcClickTime = DateTime.MinValue;
+    private DateTime _lastHeartbeatTime = DateTime.MinValue;
     private bool _hasScannedCurrentShop = false;
     private bool _isPriceModalOpenCached = false;
     private uint _lastAreaHash = 0;
@@ -227,6 +228,13 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             catch { }
 
             var isRunning = (_currentCoroutine != null && !_currentCoroutine.IsDone) || (_purchaseExecutor != null && _purchaseExecutor.IsRunning);
+
+            // GỬI HEARTBEAT ĐỊNH KỲ (500ms) BÁO CHO PYTHON BIẾT GAME ĐANG CHỜ SẴN SÀNG
+            if (!_isPausedByUser && !isRunning && !isShopOpen && (DateTime.Now - _lastHeartbeatTime).TotalMilliseconds > 500)
+            {
+                _lastHeartbeatTime = DateTime.Now;
+                NotifyWebTradeStatus("WAITING_IN_GAME");
+            }
 
             // 3. TU DONG PHAT HIEN VA BAM NUT [ OK ] KHI XUAT HIEN HOP THOAI CANH BAO GIA (Throttle moi 200ms de toi uu 100% FPS)
             if (isShopOpen && (DateTime.Now - _lastModalCheckTime).TotalMilliseconds > 200)
