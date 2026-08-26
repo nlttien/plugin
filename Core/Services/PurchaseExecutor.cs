@@ -110,7 +110,7 @@ public class PurchaseExecutor
                 var clickTarget = new Vector2(item.ScreenRect.Center.X, item.ScreenRect.Center.Y + 4);
                 var boughtSuccessfully = false;
 
-                for (var attempt = 1; attempt <= 4; attempt++)
+                for (var attempt = 1; attempt <= 2; attempt++)
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
@@ -171,11 +171,11 @@ public class PurchaseExecutor
                         break; // Mua thành công món này!
                     }
 
-                    // NẾU CHƯA VÀO TÚI ĐỒ (Game báo thiếu tiền / trễ sync) -> BẮT BUỘC PHẢI RETRY VỚI DELAY 500MS
-                    if (attempt < 4)
+                    // NẾU CHƯA VÀO TÚI ĐỒ (Game báo thiếu tiền / trễ sync) -> RETRY ĐÚNG 1 LẦN VỚI DELAY 500MS
+                    if (attempt < 2)
                     {
-                        LogHelper.Warn($"[THỬ LẠI #{attempt}] Item chưa vào túi (Game báo chưa nhận tiền). Đang đợi 500ms đồng bộ tiền và mua lại...");
-                        yield return new WaitTime(500); // CHỜ ĐÚNG 500MS VÀ THỬ LẠI
+                        LogHelper.Warn($"[THỬ LẠI #{attempt}] Item chưa vào túi. Đang đợi 500ms đồng bộ tiền và mua lại lần 2...");
+                        yield return new WaitTime(500); // CHỜ ĐÚNG 500MS VÀ THỬ LẠI LẦN 2
                     }
                     else
                     {
