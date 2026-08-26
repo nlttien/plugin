@@ -152,7 +152,14 @@ public class PurchaseExecutor
 
                         if (IsPriceDifferenceModalOpen(_gc))
                         {
-                            HandlePriceDifferenceModal(_gc, _settings);
+                            var accepted = HandlePriceDifferenceModal(_gc, _settings);
+                            if (!accepted)
+                            {
+                                // Người dùng TẮT tính năng mua chênh lệch giá -> Đã bấm ESC hủy bỏ, LẬP TỨC BỎ QUA VÀ KHÔNG RETRY LẠI!
+                                LogHelper.Warn($"[BỎ QUA VẬT PHẨM] Đã hủy mua do chênh lệch giá (Diff Price) theo cài đặt!");
+                                skippedAddresses.Add(itemAddress);
+                                break; // Thoát khỏi for attempt (không retry lần 2)
+                            }
                             yield return new WaitTime(25);
                         }
 
@@ -472,64 +479,48 @@ public class PurchaseExecutor
         return false;
     }
 
-    public static void HandlePriceDifferenceModal(GameController gc, ShopAutoBuyerSettings? settings = null)
+    public static bool HandlePriceDifferenceModal(GameController gc, ShopAutoBuyerSettings? settings = null)
     {
         try
         {
-            if (gc == null) return;
-            if (!IsPriceDifferenceModalOpen(gc)) return;
+            if (gc == null) return false;
+            if (!IsPriceDifferenceModalOpen(gc)) return false;
 
-            var ingameState = gc.IngameState ?? gc.Game?.IngameState;
-            var dialog = ingameState?.IngameUi != null ? FindPriceDifferenceDialogInMemory(ingameState.IngameUi, 0) : null;
+            var accept = settings?.AcceptPriceDifference?.Value ?? true;
 
-            Vector2 targetPos;
-
-            // 1. NẾU TÌM THẤY NÚT [ OK ] TRỰC TIẾP TỪ RAM -> BẤM THẲNG VÀO TÂM NÚT
-            var okButtonElement = FindOkButtonInDialog(dialog);
-            if (okButtonElement != null && okButtonElement.IsValid)
+            if (accept)
             {
-                var okRect = okButtonElement.GetClientRect();
-                if (okRect.Width > 0 && okRect.Height > 0)
+                // 1. NẾU BẬT: Nhấn Enter để chấp nhận mua với giá mới
+                LogHelper.Info("[Diff Price] Đã BẬT chấp nhận chênh lệch giá -> Nhấn ENTER để mua!");
+                MouseHelper.PressKey(Keys.Return, 30);
+
+                // Đồng thời click dự phòng nút [ OK ] nếu giao diện game yêu cầu click chuột
+                var ingameState = gc.IngameState ?? gc.Game?.IngameState;
+                var dialog = ingameState?.IngameUi != null ? FindPriceDifferenceDialogInMemory(ingameState.IngameUi, 0) : null;
+                var okButtonElement = FindOkButtonInDialog(dialog);
+                if (okButtonElement != null && okButtonElement.IsValid)
                 {
-                    targetPos = new Vector2(okRect.Center.X, okRect.Center.Y);
-                    MouseHelper.LeftClickAt(targetPos, 80, 50);
-                    var realWin = gc.Window.GetWindowRectangleReal();
-                    MouseHelper.MoveMouse(new Vector2(realWin.Left + 150, realWin.Top + 150));
-                    LogHelper.Info($"[Bộ nhớ RAM] Đã bấm xác nhận nút [ OK ] tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
-                    return;
+                    var okRect = okButtonElement.GetClientRect();
+                    if (okRect.Width > 0 && okRect.Height > 0)
+                    {
+                        var targetPos = new Vector2(okRect.Center.X, okRect.Center.Y);
+                        MouseHelper.LeftClickAt(targetPos, 40, 30);
+                    }
                 }
+                return true;
             }
-
-            // 2. NẾU KHÔNG -> DÙNG TỌA ĐỘ CHUẨN XÁC ĐÃ ĐƯỢC CÂN CHỈNH (763, 570)
-            var realWinRect = gc.Window.GetWindowRectangleReal();
-            if (realWinRect.Width <= 0 || realWinRect.Height <= 0)
+            else
             {
-                realWinRect = gc.Window.GetWindowRectangle();
+                // 2. NẾU TẮT: Nhấn ESC để hủy bỏ và KHÔNG mua món này
+                LogHelper.Info("[Diff Price] Đã TẮT chấp nhận chênh lệch giá -> Nhấn ESC để hủy bỏ và KHÔNG mua món này!");
+                MouseHelper.PressKey(Keys.Escape, 40);
+                return false;
             }
-            if (realWinRect.Width <= 0 || realWinRect.Height <= 0) return;
-
-            var scaleX = realWinRect.Width / 1920f;
-            var scaleY = realWinRect.Height / 1080f;
-            var customX = (settings?.OkButtonX?.Value == 750 || settings?.OkButtonX?.Value == 778 || settings?.OkButtonX?.Value == 787) 
-                ? 763 
-                : (settings?.OkButtonX?.Value ?? 763);
-            var customY = (settings?.OkButtonY?.Value == 575 || settings?.OkButtonY?.Value == 572 || settings?.OkButtonY?.Value == 545) 
-                ? 570 
-                : (settings?.OkButtonY?.Value ?? 570);
-
-            targetPos = new Vector2(realWinRect.Left + customX * scaleX, realWinRect.Top + customY * scaleY);
-
-            // BẤM ĐÚNG 1 LẦN VÀO TÂM NÚT [ OK ]
-            MouseHelper.LeftClickAt(targetPos, 80, 50);
-
-            // DI CHUYỂN CHUỘT RA VÙNG AN TOÀN TRÁNH HOVER VÀO Ô ĐỒ PHÍA DƯỚI
-            MouseHelper.MoveMouse(new Vector2(realWinRect.Left + 150, realWinRect.Top + 150));
-
-            LogHelper.Info($"[Tọa độ màn hình] Đã bấm xác nhận nút [ OK ] tại: ({targetPos.X:F0}, {targetPos.Y:F0})");
         }
         catch (Exception ex)
         {
             LogHelper.Debug($"HandlePriceDifferenceModal error: {ex.Message}");
+            return false;
         }
     }
 

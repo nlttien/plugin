@@ -26,8 +26,11 @@ public class ShopAutoBuyerSettings : ISettings
     public HotkeyNode StopHotkey { get; set; } = new HotkeyNode(Keys.F7);
 
     // ==========================================
-    // TOA DO NUT OK (1920x1080)
+    // TOA DO NUT OK VA XU LY CHENH LECH GIA (DIFF PRICE)
     // ==========================================
+    [Menu("Chap Nhan Mua Khi Chenh Lech Gia (Diff Price)")]
+    public ToggleNode AcceptPriceDifference { get; set; } = new ToggleNode(true);
+
     [Menu("Toa Do Nut OK - Truc X (Chuan 1080p: 763)")]
     public RangeNode<int> OkButtonX { get; set; } = new RangeNode<int>(763, 100, 1920);
 

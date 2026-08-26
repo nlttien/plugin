@@ -17,6 +17,16 @@ public static class MouseHelper
     }
 
     /// <summary>
+    /// Nhấn một phím bất kỳ (Enter, Escape...) với thời gian giữ holdMs.
+    /// </summary>
+    public static void PressKey(Keys key, int holdMs = 25)
+    {
+        Input.KeyDown(key);
+        if (holdMs > 0) Thread.Sleep(holdMs);
+        Input.KeyUp(key);
+    }
+
+    /// <summary>
     /// Di chuyển chuột vào chính giữa tâm ô đồ (hạ thấp xuống một khoảng offsetY để vào giữa biểu tượng ngọc).
     /// </summary>
     public static void MoveMouseWithJitter(RectangleF rect, float offsetY = 6f)
