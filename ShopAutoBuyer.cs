@@ -939,6 +939,10 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             if (ImGui.InputInt("Do Tre Toi Da (Max Delay Ms)", ref maxDelay, 5, 20))
                 Settings.MaxDelayMs.Value = Math.Clamp(maxDelay, 30, 3000);
 
+            var acceptDiff = Settings.AcceptPriceDifference.Value;
+            if (ImGui.Checkbox("Chap Nhan Mua Khi Chenh Lech Gia (Diff Price - Enter: Mua / Esc: Huy)", ref acceptDiff))
+                Settings.AcceptPriceDifference.Value = acceptDiff;
+
             var showOverlay = Settings.ShowStatusBox.Value;
             if (ImGui.Checkbox("Hien Bang Thong Tin Trang Thai (Overlay Box)", ref showOverlay))
                 Settings.ShowStatusBox.Value = showOverlay;
