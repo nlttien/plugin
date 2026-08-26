@@ -92,14 +92,9 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
             };
         }
 
-        // Gan su kien cho nut Khoi chay Web Trade
-        if (Settings?.ToggleWebTradeButton != null)
-        {
-            Settings.ToggleWebTradeButton.OnPressed = () =>
-            {
-                ToggleWebTradeProcess();
-            };
-        }
+        // Dang ky PluginBridge de cac plugin khac (AutoExile) co the goi truc tiep
+        GameController?.PluginBridge?.SaveMethod("ShopAutoBuyer.WithdrawByFilter", (Action<string?>)WithdrawByFilter);
+        GameController?.PluginBridge?.SaveMethod("ShopAutoBuyer.IsWithdrawing", (Func<bool>)IsWithdrawing);
 
         LogHelper.Info("Plugin ShopAutoBuyer da khoi tao thanh cong (Ho tro PoE 1 & PoE 2).");
         return true;
@@ -185,8 +180,17 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 _hasScannedCurrentShop = false;
                 _isPriceModalOpenCached = false;
                 PurchaseExecutor.ScannedPriceCache.Clear();
-                StopAllPurchases();
-                LogHelper.Info($">>> [KHU VỰC MỚI] Đã chuyển khu vực ({currentAreaHash}). Hủy toàn bộ tác vụ mua cũ và sẵn sàng cho Shop mới! <<<");
+
+                // NẾU ĐANG CHẠY TIẾN TRÌNH CẤT ĐỒ HOẶC RÚT ĐỒ -> TUYỆT ĐỐI KHÔNG HỦY ĐỂ BOT TIẾP TỤC MỞ RƯƠNG TRONG HIDEOUT MỚI!
+                if (_stashDepositService?.IsDepositing != true)
+                {
+                    StopAllPurchases(forceStopDeposit: false);
+                    LogHelper.Info($">>> [KHU VỰC MỚI] Đã chuyển khu vực ({currentAreaHash}). Hủy toàn bộ tác vụ mua cũ và sẵn sàng cho Shop mới! <<<");
+                }
+                else
+                {
+                    LogHelper.Info($">>> [CHUYỂN KHU VỰC ĐỂ CẤT ĐỒ] Đã chuyển vùng sang ({currentAreaHash}) trong khi đang cất đồ -> Tiếp tục tiến trình mở rương! <<<");
+                }
             }
 
             // TỰ ĐỘNG RESET CỜ KHI SHOP MỚI MỞ HOẶC KHI PYTHON GỬI LỆNH TRAVEL MỚI
@@ -237,7 +241,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
 
             // 6. TU DONG VE HIDEOUT & CAT DO KHI DAY HANH TRANG (Tu dong dong shop neu con dang mo)
             var needsDeposit = _stashDepositService != null && _stashDepositService.NeedsDeposit();
-            if (!_isPausedByUser && needsDeposit && !isRunning && !_stashDepositService.IsDepositing)
+            if (!_isPausedByUser && needsDeposit && (_stashDepositService?.IsDepositing != true))
             {
                 if (isShopOpen)
                 {
@@ -245,10 +249,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                     Thread.Sleep(30);
                     Input.KeyUp(Keys.Space);
                 }
-                else
-                {
-                    StartDepositCoroutine();
-                }
+                StartDepositCoroutine();
             }
             else if (!_isPausedByUser && Settings?.TestDepositAfterEveryPurchase?.Value == true && !isShopOpen && !isRunning && _stashDepositService != null && !_stashDepositService.IsDepositing)
             {
@@ -529,6 +530,16 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         }
     }
 
+    public void WithdrawByFilter(string? customFilter = null)
+    {
+        StartWithdrawByFilterCoroutine(customFilter);
+    }
+
+    public bool IsWithdrawing()
+    {
+        return _stashDepositService != null && _stashDepositService.IsDepositing;
+    }
+
     public void StartWithdrawByFilterCoroutine(string? customFilter = null)
     {
         if (_isPausedByUser) return;
@@ -558,7 +569,7 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
         }
     }
 
-    private void StopAllPurchases()
+    private void StopAllPurchases(bool forceStopDeposit = true)
     {
         try
         {
@@ -567,12 +578,12 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 _purchaseExecutor.RequestStop = true;
                 _purchaseExecutor.IsRunning = false;
             }
-            if (_stashDepositService != null)
+            if (_stashDepositService != null && (forceStopDeposit || !_stashDepositService.IsDepositing))
             {
                 _stashDepositService.RequestStop = true;
                 _stashDepositService.IsDepositing = false;
             }
-            if (_currentCoroutine != null)
+            if (_currentCoroutine != null && (forceStopDeposit || _stashDepositService?.IsDepositing != true))
             {
                 _currentCoroutine.Done();
             }

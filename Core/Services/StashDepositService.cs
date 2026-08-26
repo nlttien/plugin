@@ -58,17 +58,26 @@ public class StashDepositService
             var isGuildStash = _settings.StashType?.Value?.Contains("Guild", StringComparison.OrdinalIgnoreCase) == true;
             var targetStashName = isGuildStash ? "GUILD STASH" : "STASH";
 
-            if (IsInOwnHideout(isGuildStash))
+            // Luôn đảm bảo đóng bất kỳ cửa sổ Shop / NPC nào đang mở
+            Input.KeyDown(Keys.Space);
+            Thread.Sleep(30);
+            Input.KeyUp(Keys.Space);
+            yield return new WaitTime(100);
+
+            // BƯỚC 2: BIẾN VỀ HIDEOUT
+            var startAreaHash = _gc.IngameState?.Data?.CurrentAreaHash ?? 0;
+            var isAlreadyHome = IsInOwnHideout(isGuildStash) && (FindStashLabelOnGround(isGuildStash) != null || FindStashEntity(isGuildStash) != null);
+
+            if (isAlreadyHome)
             {
-                LogHelper.Info(">>> [VỀ NHÀ] ĐÃ Ở TRONG HIDEOUT CỦA MÌNH. Bỏ qua lệnh /hideout và tiến hành mở rương! <<<");
+                LogHelper.Info(">>> [VỀ NHÀ] ĐÃ Ở TRONG HIDEOUT CỦA MÌNH VÀ TÌM THẤY RƯƠNG. Bỏ qua lệnh /hideout! <<<");
             }
             else
             {
-                var startAreaHash = _gc.IngameState?.Data?.CurrentAreaHash ?? 0;
                 LogHelper.Info(">>> [BƯỚC 1: VỀ NHÀ] Đang thực hiện biến về Hideout cá nhân qua lệnh /hideout... <<<");
 
                 var teleportSuccess = false;
-                for (var tpAttempt = 0; tpAttempt < 3; tpAttempt++)
+                for (var tpAttempt = 0; tpAttempt < 4; tpAttempt++)
                 {
                     if (RequestStop) yield break;
 
@@ -76,7 +85,7 @@ public class StashDepositService
                     TryClickLeaveHideoutButton();
                     yield return new WaitTime(150);
 
-                    // 2. Gõ lệnh chat /hideout trực tiếp vào game
+                    // 2. Gõ lệnh chat /hideout bằng Clipboard Paste (tránh Unikey)
                     SendHideoutChatCommand();
                     yield return new WaitTime(100);
 
@@ -86,8 +95,8 @@ public class StashDepositService
                     Thread.Sleep(40);
                     Input.KeyUp(homeKey);
 
-                    // 4. Chờ xem bản đồ có bắt đầu load chuyển khu vực không (Tối đa 3s mỗi lần thử)
-                    for (var w = 0; w < 6; w++)
+                    // 4. Chờ xem bản đồ có bắt đầu load chuyển khu vực không (Tối đa 5s mỗi lần thử)
+                    for (var w = 0; w < 10; w++)
                     {
                         yield return new WaitTime(500);
                         var currentHash = _gc.IngameState?.Data?.CurrentAreaHash ?? 0;
@@ -99,11 +108,19 @@ public class StashDepositService
                         }
                     }
 
-                    if (teleportSuccess || IsInOwnHideout(isGuildStash)) break;
+                    if (teleportSuccess) break;
                     LogHelper.Warn($"[VỀ NHÀ] Thử lại lệnh /hideout lần {tpAttempt + 2}...");
                 }
 
-                // Chờ nhân vật và các NPC/rương trong Hideout nạp đầy đủ (1s)
+                // Chờ nhân vật và các NPC/rương trong Hideout nạp đầy đủ (Settle time)
+                for (var w = 0; w < 25; w++)
+                {
+                    yield return new WaitTime(200);
+                    if (_gc.IngameState?.IngameUi != null && IsInOwnHideout(isGuildStash))
+                    {
+                        break;
+                    }
+                }
                 yield return new WaitTime(1000);
             }
 
@@ -118,52 +135,76 @@ public class StashDepositService
                 LogHelper.Info($"[BƯỚC 2: TÌM RƯƠNG] Đang tìm và mở rương {targetStashName} trong Hideout...");
                 var windowRect = _gc.Window.GetWindowRectangle();
 
-                for (var openAttempt = 0; openAttempt < 5; openAttempt++)
+                for (var openAttempt = 0; openAttempt < 15; openAttempt++)
                 {
                     if (RequestStop) yield break;
 
-                    // 1. Thử click trực tiếp vào nhãn chữ trên mặt đất (STASH / GUILD STASH)
-                    var label = FindStashLabelOnGround(isGuildStash);
+                    if (IsStashOpen(isGuildStash))
+                    {
+                        stashOpened = true;
+                        break;
+                    }
+
+                    // 1. Thử click trực tiếp vào nhãn chữ trên mặt đất (GUILD STASH / STASH) - Rất nhanh và chính xác 100%
+                    var label = FindStashLabelOnGround(isGuildStash) ?? FindStashLabelOnGround(isGuild: false);
                     var clicked = false;
                     if (label != null && label.IsValid)
                     {
                         var rect = label.GetClientRect();
-                        if (rect.Width > 5 && rect.Height > 5)
+                        if (rect.Width > 5 && rect.Height > 5 && rect.Center.X > 20 && rect.Center.Y > 20)
                         {
-                            var clickPos = new Vector2(windowRect.X + rect.Center.X, windowRect.Y + rect.Center.Y);
-                            LogHelper.Info($"[CLICK NHÃN RƯƠNG] Bấm vào nhãn {targetStashName} tại: ({clickPos.X:F0}, {clickPos.Y:F0})");
-                            MouseHelper.LeftClickAt(clickPos, 80, 50);
+                            var clickPos = new Vector2(rect.Center.X, rect.Center.Y + 12f);
+                            LogHelper.Info($"[CLICK NHÃN RƯƠNG] Bấm vào nhãn {targetStashName} trên mặt đất tại: ({clickPos.X:F0}, {clickPos.Y:F0}) [+12px Y]");
+                            MouseHelper.LeftClickAt(clickPos, 50, 40);
                             clicked = true;
                         }
                     }
 
+                    // 2. Dự phòng: Quét tìm Entity rương 3D theo chuẩn StashSystem của AutoExile
                     if (!clicked)
                     {
-                        // 2. Thử tìm Entity rương trong thế giới 3D và chiếu tọa độ lên màn hình (WorldToScreen)
-                        var stashEntity = FindStashEntity(isGuildStash);
+                        var stashEntity = FindStashEntity(isGuildStash) ?? FindStashEntity(isGuild: false);
                         if (stashEntity != null && stashEntity.IsValid)
                         {
-                            var sharpDxPos = _gc.IngameState.Camera.WorldToScreen(stashEntity.Pos);
-                            var screenPos = new Vector2(windowRect.X + sharpDxPos.X, windowRect.Y + sharpDxPos.Y);
-                            LogHelper.Info($"[CLICK ENTITY RƯƠNG] Bấm vào vị trí rương {targetStashName} tại: ({screenPos.X:F0}, {screenPos.Y:F0})");
-                            MouseHelper.LeftClickAt(screenPos, 80, 50);
-                            clicked = true;
+                            var camera = _gc.IngameState?.Camera;
+                            if (camera != null)
+                            {
+                                var boundsCenter = stashEntity.BoundsCenterPosNum;
+                                var worldPos = boundsCenter != System.Numerics.Vector3.Zero 
+                                    ? boundsCenter 
+                                    : (stashEntity.PosNum != System.Numerics.Vector3.Zero ? stashEntity.PosNum : new System.Numerics.Vector3(stashEntity.Pos.X, stashEntity.Pos.Y, stashEntity.Pos.Z - 30));
+
+                                var screenPos = camera.WorldToScreen(worldPos);
+                                if (screenPos.X > 10 && screenPos.Y > 10 && screenPos.X < windowRect.Width - 10 && screenPos.Y < windowRect.Height - 10)
+                                {
+                                    LogHelper.Info($"[CLICK RƯƠNG ENTITY] Bấm vào rương Stash tại: ({screenPos.X:F0}, {screenPos.Y:F0})");
+                                    MouseHelper.LeftClickAt(screenPos, 50, 40);
+                                    clicked = true;
+                                }
+                            }
                         }
                     }
 
-                    // Chờ nhân vật chạy lại gần và mở cửa sổ rương (Tối đa 3.5 giây)
-                    for (var w = 0; w < 35; w++)
+                    if (clicked)
                     {
-                        yield return new WaitTime(100);
-                        if (IsStashOpen(isGuildStash))
+                        // Chờ nhân vật chạy lại gần và mở cửa sổ rương (Tối đa 4 giây)
+                        for (var w = 0; w < 40; w++)
                         {
-                            stashOpened = true;
-                            break;
+                            yield return new WaitTime(100);
+                            if (IsStashOpen(isGuildStash))
+                            {
+                                stashOpened = true;
+                                break;
+                            }
                         }
+                    }
+                    else
+                    {
+                        // Chưa tìm thấy nhãn hoặc entity (đang nạp vùng dữ liệu), đợi 250ms rồi thử lại
+                        yield return new WaitTime(250);
                     }
 
                     if (stashOpened) break;
-                    yield return new WaitTime(500);
                 }
             }
 
@@ -174,16 +215,16 @@ public class StashDepositService
             }
 
             LogHelper.Info($"[BƯỚC 3: MỞ RƯƠNG XONG] Cửa sổ rương {targetStashName} đã mở! Bắt đầu cất đồ...");
-            yield return new WaitTime(400);
+            yield return new WaitTime(250);
 
-            // BƯỚC 4: TIẾN HÀNH CẤT ĐỒ THÔNG MINH (STASHIE + NÚT CẤT NHANH + CTRL-CLICK + TỰ ĐỔI TAB)
+            // BƯỚC 4: TIẾN HÀNH CẤT ĐỒ THÔNG MINH
             yield return ExecuteSmartDepositRoutine(isGuildStash);
 
-            yield return new WaitTime(300);
+            yield return new WaitTime(200);
 
             // BƯỚC 5: HOÀN TẤT TIẾN TRÌNH CẤT ĐỒ
             LogHelper.Info("[HOÀN TẤT] Quá trình cất đồ hoàn tất. Sẵn sàng tiếp tục!");
-            yield return new WaitTime(500);
+            yield return new WaitTime(300);
 
             // BƯỚC 6: Báo hoàn tất để Web Trade tiếp tục hoạt động
             NotifyBridge("COMPLETED");
@@ -204,7 +245,7 @@ public class StashDepositService
         {
             // Chuyển trực tiếp sang Tab mục tiêu (ví dụ: 'boss')
             yield return SwitchToTabNamed(targetTabName, isGuildStash);
-            yield return new WaitTime(400);
+            yield return new WaitTime(250);
         }
         else
         {
@@ -216,16 +257,16 @@ public class StashDepositService
                 Input.KeyDown(stashieKey);
                 Thread.Sleep(50);
                 Input.KeyUp(stashieKey);
-                yield return new WaitTime(800);
+                yield return new WaitTime(600);
             }
 
             // 2. Click Nút Cất Nhanh Affinity
             ClickAffinityDepositButton();
-            yield return new WaitTime(400);
+            yield return new WaitTime(250);
         }
 
         // 3. Ctrl+Click toàn bộ vật phẩm trong hành trang vào Tab hiện tại
-        var maxCycles = onlyTargetTab ? 1 : 6;
+        var maxCycles = onlyTargetTab ? 1 : 4;
         for (var tabCycle = 0; tabCycle < maxCycles; tabCycle++)
         {
             if (RequestStop || !IsStashOpen(isGuildStash)) yield break;
@@ -242,12 +283,12 @@ public class StashDepositService
             {
                 if (RequestStop || !IsStashOpen(isGuildStash)) yield break;
 
-                // Ctrl + Shift + Left Click vào ô đồ với toạ độ màn hình tuyệt đối
-                MouseHelper.CtrlShiftLeftClickAt(itemInfo.Pos, 60, 45);
-                yield return new WaitTime(isGuildStash ? 350 : 120);
+                // Ctrl + Shift + Left Click vào ô đồ với toạ độ màn hình tuyệt đối chính xác
+                MouseHelper.CtrlShiftLeftClickAt(itemInfo.Pos, 15, 25);
+                yield return new WaitTime(isGuildStash ? 150 : 35);
             }
 
-            yield return new WaitTime(400);
+            yield return new WaitTime(200);
 
             var afterItems = GetPlayerInventoryItemsWithPositions();
             if (afterItems.Count == 0)
@@ -260,9 +301,9 @@ public class StashDepositService
             {
                 LogHelper.Warn($"[CHUYỂN TAB] Còn {afterItems.Count} món chưa vào được Tab này -> Bấm [->] chuyển sang Tab tiếp theo...");
                 Input.KeyDown(Keys.Right);
-                Thread.Sleep(50);
+                Thread.Sleep(40);
                 Input.KeyUp(Keys.Right);
-                yield return new WaitTime(400);
+                yield return new WaitTime(300);
             }
             else
             {
@@ -286,19 +327,17 @@ public class StashDepositService
 
         if (stashEl != null)
         {
-            var windowRect = _gc.Window.GetWindowRectangle();
-
             // 1. Thử click trực tiếp vào nút Tab có chữ targetTabName (ví dụ 'boss')
             var tabBtn = FindElementWithText(stashEl, targetTabName);
             if (tabBtn != null && tabBtn.IsValid && tabBtn.IsVisible)
             {
                 var rect = tabBtn.GetClientRect();
-                if (rect.Width > 0 && rect.Height > 0)
+                if (rect.Width > 0 && rect.Height > 0 && rect.Center.X > 50 && rect.Center.Y > 50)
                 {
-                    var tabScreenPos = new Vector2(windowRect.X + rect.Center.X, windowRect.Y + rect.Center.Y);
-                    MouseHelper.LeftClickAt(tabScreenPos, 80, 50);
-                    LogHelper.Info($"[CHỌN TAB] Đã click nút Tab '{targetTabName}' tại ({tabScreenPos.X:F0}, {tabScreenPos.Y:F0})!");
-                    yield return new WaitTime(400);
+                    var tabScreenPos = new Vector2(rect.Center.X, rect.Center.Y + 14f);
+                    MouseHelper.LeftClickAt(tabScreenPos, 50, 40);
+                    LogHelper.Info($"[CHỌN TAB] Đã click nút Tab '{targetTabName}' tại ({tabScreenPos.X:F0}, {tabScreenPos.Y:F0}) [+14px Y]!");
+                    yield return new WaitTime(300);
                     yield break;
                 }
             }
@@ -330,9 +369,9 @@ public class StashDepositService
 
                         var key = currentIdx < targetIdx ? Keys.Right : Keys.Left;
                         Input.KeyDown(key);
-                        Thread.Sleep(40);
+                        Thread.Sleep(30);
                         Input.KeyUp(key);
-                        yield return new WaitTime(250);
+                        yield return new WaitTime(200);
                     }
                 }
             }
@@ -344,26 +383,13 @@ public class StashDepositService
         var result = new List<(int, int, Vector2, ServerInventory.InventSlotItem?)>();
         try
         {
-            var windowRect = _gc.Window.GetWindowRectangle();
             var ingameUi = _gc.IngameState?.IngameUi;
             var invPanel = ingameUi?.InventoryPanel;
             var invElement = invPanel?[ExileCore.Shared.Enums.InventoryIndex.PlayerInventory];
 
-            // Tọa độ bounding box của lưới hành trang
-            RectangleF invRect;
-            if (invElement != null && invElement.IsValid && invElement.GetClientRect().Width > 100)
-            {
-                invRect = invElement.GetClientRect();
-            }
-            else
-            {
-                // Fallback theo tỉ lệ độ phân giải màn hình
-                var realWin = _gc.Window.GetWindowRectangleReal();
-                if (realWin.Width <= 0 || realWin.Height <= 0) realWin = windowRect;
-                var scaleX = realWin.Width / 1920f;
-                var scaleY = realWin.Height / 1080f;
-                invRect = new RectangleF(1295 * scaleX, 615 * scaleY, 570 * scaleX, 240 * scaleY);
-            }
+            if (invElement == null || !invElement.IsValid) return result;
+            var invRect = invElement.GetClientRect();
+            if (invRect.Width < 100 || invRect.Height < 100 || invRect.X < 50 || invRect.Y < 50) return result;
 
             var cellW = invRect.Width / 12f;
             var cellH = invRect.Height / 5f;
@@ -377,21 +403,13 @@ public class StashDepositService
                     if (sItem == null) continue;
                     var col = sItem.PosX;
                     var row = sItem.PosY;
-                    var sx = Math.Max(1, sItem.SizeX);
-                    var sy = Math.Max(1, sItem.SizeY);
+                    if (col < 0 || col >= 12 || row < 0 || row >= 5) continue;
 
-                    var itemRect = sItem.GetClientRect();
-                    Vector2 screenPos;
-                    if (itemRect.Width > 5 && itemRect.Height > 5)
+                    var screenPos = new Vector2(invRect.Left + (col + 0.5f) * cellW, invRect.Top + (row + 0.5f) * cellH);
+                    if (screenPos.X > 50 && screenPos.Y > 50)
                     {
-                        screenPos = new Vector2(windowRect.X + itemRect.Center.X, windowRect.Y + itemRect.Center.Y);
+                        result.Add((col, row, screenPos, sItem));
                     }
-                    else
-                    {
-                        screenPos = new Vector2(windowRect.X + invRect.Left + (col + sx * 0.5f) * cellW, windowRect.Y + invRect.Top + (row + sy * 0.5f) * cellH);
-                    }
-
-                    result.Add((col, row, screenPos, sItem));
                 }
                 return result;
             }
@@ -401,9 +419,9 @@ public class StashDepositService
             foreach (var invItem in items)
             {
                 var itemRect = invItem.GetClientRect();
-                if (itemRect.Width > 5 && itemRect.Height > 5)
+                if (itemRect.Width > 5 && itemRect.Height > 5 && itemRect.Center.X > 50 && itemRect.Center.Y > 50)
                 {
-                    var screenPos = new Vector2(windowRect.X + itemRect.Center.X, windowRect.Y + itemRect.Center.Y);
+                    var screenPos = new Vector2(itemRect.Center.X, itemRect.Center.Y);
                     result.Add((0, 0, screenPos, null));
                 }
             }
@@ -423,24 +441,27 @@ public class StashDepositService
             var ingameUi = _gc.IngameState?.IngameUi;
             if (ingameUi == null) return;
 
-            // 1. Thử tìm element nút Affinity Deposit trực tiếp từ bộ nhớ UI
-            var btnElement = FindAffinityButtonInMemory(ingameUi);
-            if (btnElement != null && btnElement.IsValid)
+            var stashEl = (ingameUi.GuildStashElement?.IsVisible == true ? (ExileCore.PoEMemory.Elements.StashElement)ingameUi.GuildStashElement : null)
+                ?? ingameUi.StashElement;
+
+            var windowRect = _gc.Window.GetWindowRectangle();
+
+            // 1. Tọa độ chính xác theo VisibleStash
+            if (stashEl?.VisibleStash?.InventoryUIElement != null && stashEl.VisibleStash.InventoryUIElement.IsValid)
             {
-                var rect = btnElement.GetClientRect();
-                if (rect.Width > 0 && rect.Height > 0)
+                var invRect = stashEl.VisibleStash.InventoryUIElement.GetClientRectCache;
+                if (invRect.Width > 50 && invRect.Height > 50)
                 {
-                    var windowRect = _gc.Window.GetWindowRectangle();
-                    var pos = new Vector2(windowRect.X + rect.Center.X, windowRect.Y + rect.Center.Y);
+                    var pos = new Vector2(windowRect.X + invRect.Right - 14f, windowRect.Y + invRect.Bottom - 14f);
                     MouseHelper.LeftClickAt(pos, 60, 50);
-                    LogHelper.Info($"[Affinity Button - RAM] Đã bấm nút cất nhanh tại: ({pos.X:F0}, {pos.Y:F0})");
+                    LogHelper.Info($"[Affinity Button - VisibleStash] Đã bấm nút tại: ({pos.X:F0}, {pos.Y:F0})");
                     return;
                 }
             }
 
             // 2. Fallback: Dùng tọa độ chuẩn góc dưới bên phải Stash Panel (1080p: X=632, Y=705)
             var realWin = _gc.Window.GetWindowRectangleReal();
-            if (realWin.Width <= 0 || realWin.Height <= 0) realWin = _gc.Window.GetWindowRectangle();
+            if (realWin.Width <= 0 || realWin.Height <= 0) realWin = windowRect;
             if (realWin.Width <= 0 || realWin.Height <= 0) return;
 
             var scaleX = realWin.Width / 1920f;
@@ -461,31 +482,6 @@ public class StashDepositService
 
     private static Element? FindAffinityButtonInMemory(Element? ingameUi)
     {
-        if (ingameUi == null) return null;
-
-        var candidates = new List<Element>();
-        FindElementsRecursive(ingameUi, candidates, 0);
-
-        foreach (var c in candidates)
-        {
-            var rect = c.GetClientRect();
-            // Nút trên Ảnh 2 có kích thước khoảng 20x20 đến 45x45 px
-            if (rect.Width >= 18 && rect.Width <= 50 && rect.Height >= 18 && rect.Height <= 50)
-            {
-                var txt = c.Text ?? string.Empty;
-                var tooltip = c.Tooltip?.Text ?? string.Empty;
-
-                if (tooltip.Contains("Affinity", StringComparison.OrdinalIgnoreCase) ||
-                    tooltip.Contains("Deposit", StringComparison.OrdinalIgnoreCase) ||
-                    tooltip.Contains("Transfer", StringComparison.OrdinalIgnoreCase) ||
-                    tooltip.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
-                    txt.Contains("Affinity", StringComparison.OrdinalIgnoreCase))
-                {
-                    return c;
-                }
-            }
-        }
-
         return null;
     }
 
@@ -499,9 +495,9 @@ public class StashDepositService
         IsDepositing = true;
         RequestStop = false;
 
-        var filter = string.IsNullOrWhiteSpace(customFilter)
-            ? (_settings.StashSearchFilter?.Value ?? "\"!s of co|es of d\" \"y: r\" pte")
-            : customFilter;
+        var filter = !string.IsNullOrWhiteSpace(customFilter)
+            ? customFilter.Trim()
+            : (_settings.StashSearchFilter?.Value ?? "invitation|cleansing|incandescent");
 
         LogHelper.Warn($">>> [LẤY ĐỒ TỪ RƯƠNG] BẮT ĐẦU VỚI FILTER: {filter} <<<");
 
@@ -557,16 +553,8 @@ public class StashDepositService
             ApplyFilterToStashSearch(filter);
             yield return new WaitTime(400);
 
-            // 3. Kích hoạt Nút Rút / Cất đồ (Ảnh 2)
-            LogHelper.Info("[ẢNH 2: BẤM NÚT] Đang bấm nút hành động rương...");
-            ClickAffinityDepositButton();
-            yield return new WaitTime(300);
-
-            // 4. Nếu bật tự động rút các món Highlight: Ctrl+Click từng món highlight trong tab vào hành trang
-            if (_settings.AutoWithdrawHighlightedItems?.Value == true)
-            {
-                yield return WithdrawHighlightedItemsRoutine(isGuildStash);
-            }
+            // 3. Rút trực tiếp 100% bằng code các item khớp Filter trong RAM vào hành trang
+            yield return WithdrawHighlightedItemsRoutine(isGuildStash);
 
             LogHelper.Info(">>> [HOÀN TẤT] ĐÃ THỰC HIỆN XONG LỆNH LẤY ĐỒ THEO FILTER! <<<");
         }
@@ -769,21 +757,34 @@ public class StashDepositService
                 {
                     if (l == null || l.Label == null || !l.Label.IsValid) continue;
 
+                    var txt = (l.Label.Text ?? string.Empty).Trim();
+                    var txtNoTags = (l.Label.TextNoTags ?? string.Empty).Trim();
                     var path = l.ItemOnGround?.Path ?? string.Empty;
                     var renderName = l.ItemOnGround?.RenderName ?? string.Empty;
 
                     if (isGuild)
                     {
-                        if (path.Contains("GuildStash", StringComparison.OrdinalIgnoreCase) ||
-                            renderName.Contains("Guild Stash", StringComparison.OrdinalIgnoreCase))
+                        if (txt.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                            txtNoTags.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                            path.Contains("GuildStash", StringComparison.OrdinalIgnoreCase) ||
+                            renderName.Contains("Guild Stash", StringComparison.OrdinalIgnoreCase) ||
+                            renderName.Contains("Bang hội", StringComparison.OrdinalIgnoreCase))
                         {
                             return l.Label;
                         }
                     }
                     else
                     {
-                        if ((path.Contains("Stash", StringComparison.OrdinalIgnoreCase) || renderName.Contains("Stash", StringComparison.OrdinalIgnoreCase)) &&
-                            !path.Contains("Guild", StringComparison.OrdinalIgnoreCase) && !renderName.Contains("Guild", StringComparison.OrdinalIgnoreCase))
+                        var isGuildText = txt.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                                          txtNoTags.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                                          path.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                                          renderName.Contains("Guild", StringComparison.OrdinalIgnoreCase);
+
+                        if (!isGuildText && (txt.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                                             txtNoTags.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                                             path.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                                             renderName.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                                             renderName.Contains("Rương", StringComparison.OrdinalIgnoreCase)))
                         {
                             return l.Label;
                         }
@@ -802,8 +803,16 @@ public class StashDepositService
                 foreach (var l in labels)
                 {
                     if (l == null || l.Label == null || !l.Label.IsValid) continue;
+                    var txt = (l.Label.Text ?? string.Empty).Trim();
+                    var txtNoTags = (l.Label.TextNoTags ?? string.Empty).Trim();
                     var path = l.ItemOnGround?.Path ?? string.Empty;
-                    if (path.Contains("Stash", StringComparison.OrdinalIgnoreCase)) return l.Label;
+
+                    if (txt.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                        txtNoTags.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                        path.Contains("Stash", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return l.Label;
+                    }
 
                     var matchedChild = FindMatchingLabel(l.Label, isGuild: false);
                     if (matchedChild != null) return matchedChild;
@@ -822,49 +831,83 @@ public class StashDepositService
     {
         try
         {
-            var entities = _gc.EntityListWrapper?.OnlyValidEntities ?? _gc.EntityListWrapper?.Entities ?? _gc.Entities;
-            if (entities == null) return null;
-
-            if (isGuild)
+            // 1. Quét tìm Guild Stash trong gc.Entities trước (tránh bị lọc IsHidden)
+            if (isGuild && _gc.Entities != null)
             {
-                foreach (var e in entities)
+                foreach (var entity in _gc.Entities)
                 {
-                    if (e == null || !e.IsValid) continue;
-                    var path = e.Path ?? string.Empty;
-                    var renderName = e.RenderName ?? string.Empty;
+                    if (entity == null || !entity.IsValid) continue;
+                    var path = entity.Path ?? string.Empty;
+                    var renderName = entity.RenderName ?? string.Empty;
 
-                    if (e.Type == EntityType.GuildStash ||
-                        path.Contains("GuildStash", StringComparison.OrdinalIgnoreCase) || 
-                        renderName.Contains("Guild Stash", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return e;
-                    }
-                }
-            }
-            else
-            {
-                foreach (var e in entities)
-                {
-                    if (e == null || !e.IsValid) continue;
-                    var path = e.Path ?? string.Empty;
-                    var renderName = e.RenderName ?? string.Empty;
+                    bool matchGuild = entity.Type == EntityType.GuildStash || 
+                                   path.Contains("GuildStash", StringComparison.OrdinalIgnoreCase) ||
+                                   path.Contains("StashGuild", StringComparison.OrdinalIgnoreCase) ||
+                                   (path.Contains("Guild", StringComparison.OrdinalIgnoreCase) && path.Contains("Stash", StringComparison.OrdinalIgnoreCase)) ||
+                                   renderName.Contains("Guild Stash", StringComparison.OrdinalIgnoreCase) ||
+                                   renderName.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                                   renderName.Contains("Bang hội", StringComparison.OrdinalIgnoreCase);
 
-                    if ((e.Type == EntityType.Stash || path.Contains("MiscellaneousObjects/Stash", StringComparison.OrdinalIgnoreCase) || path.EndsWith("/Stash", StringComparison.OrdinalIgnoreCase) || renderName.Equals("Stash", StringComparison.OrdinalIgnoreCase)) &&
-                        !path.Contains("Guild", StringComparison.OrdinalIgnoreCase) && !renderName.Contains("Guild", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return e;
-                    }
+                    if (matchGuild) return entity;
                 }
             }
 
-            // Fallback: Tìm bất kỳ rương nào
-            foreach (var e in entities)
+            // 2. Quét tìm Guild Stash trong OnlyValidEntities
+            if (isGuild && _gc.EntityListWrapper?.OnlyValidEntities != null)
             {
-                if (e == null || !e.IsValid) continue;
-                var path = e.Path ?? string.Empty;
-                if (e.Type == EntityType.Stash || e.Type == EntityType.GuildStash || path.Contains("Stash", StringComparison.OrdinalIgnoreCase))
+                foreach (var entity in _gc.EntityListWrapper.OnlyValidEntities)
                 {
-                    return e;
+                    if (entity == null || !entity.IsValid) continue;
+                    var path = entity.Path ?? string.Empty;
+                    var renderName = entity.RenderName ?? string.Empty;
+
+                    bool matchGuild = entity.Type == EntityType.GuildStash || 
+                                   path.Contains("GuildStash", StringComparison.OrdinalIgnoreCase) ||
+                                   path.Contains("StashGuild", StringComparison.OrdinalIgnoreCase) ||
+                                   (path.Contains("Guild", StringComparison.OrdinalIgnoreCase) && path.Contains("Stash", StringComparison.OrdinalIgnoreCase)) ||
+                                   renderName.Contains("Guild Stash", StringComparison.OrdinalIgnoreCase) ||
+                                   renderName.Contains("Guild", StringComparison.OrdinalIgnoreCase) ||
+                                   renderName.Contains("Bang hội", StringComparison.OrdinalIgnoreCase);
+
+                    if (matchGuild) return entity;
+                }
+            }
+
+            // 3. Quét Rương cá nhân thông thường trong gc.Entities
+            if (_gc.Entities != null)
+            {
+                foreach (var entity in _gc.Entities)
+                {
+                    if (entity == null || !entity.IsValid) continue;
+                    var path = entity.Path ?? string.Empty;
+                    var renderName = entity.RenderName ?? string.Empty;
+
+                    bool isStash = entity.Type == EntityType.Stash || 
+                                   path.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                                   renderName.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                                   renderName.Contains("Rương", StringComparison.OrdinalIgnoreCase);
+
+                    if (isStash && !path.Contains("Guild", StringComparison.OrdinalIgnoreCase))
+                        return entity;
+                }
+            }
+
+            // 4. Quét Rương cá nhân trong OnlyValidEntities
+            if (_gc.EntityListWrapper?.OnlyValidEntities != null)
+            {
+                foreach (var entity in _gc.EntityListWrapper.OnlyValidEntities)
+                {
+                    if (entity == null || !entity.IsValid) continue;
+                    var path = entity.Path ?? string.Empty;
+                    var renderName = entity.RenderName ?? string.Empty;
+
+                    bool isStash = entity.Type == EntityType.Stash || 
+                                   path.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                                   renderName.Contains("Stash", StringComparison.OrdinalIgnoreCase) ||
+                                   renderName.Contains("Rương", StringComparison.OrdinalIgnoreCase);
+
+                    if (isStash && !path.Contains("Guild", StringComparison.OrdinalIgnoreCase))
+                        return entity;
                 }
             }
         }
@@ -889,21 +932,7 @@ public class StashDepositService
                 return false;
             }
 
-            // Nếu tìm thấy nhãn rương hoặc entity rương trong Hideout -> Đang ở nhà mình
-            if (FindStashLabelOnGround(isGuildStash) != null ||
-                FindStashLabelOnGround(isGuild: false) != null ||
-                FindStashEntity(isGuildStash) != null ||
-                FindStashEntity(isGuild: false) != null)
-            {
-                return true;
-            }
-
-            // Kiểm tra các nút đặc trưng của Hideout cá nhân (EDIT, RECLAIM ALL)
-            var ingameUi = _gc.IngameState?.IngameUi ?? _gc.Game?.IngameState?.IngameUi;
-            if (ingameUi != null && (FindElementWithText(ingameUi, "RECLAIM ALL") != null || FindElementWithText(ingameUi, "EDIT") != null))
-            {
-                return true;
-            }
+            return true;
         }
         catch { }
 
@@ -966,36 +995,40 @@ public class StashDepositService
     {
         try
         {
-            // 1. Mo chat bang Enter
+            // Copy chuỗi /hideout vào Clipboard trong STA thread
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    Clipboard.SetText("/hideout");
+                }
+                catch { }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join(300);
+
+            // 1. Mở chat bằng Enter
             Input.KeyDown(Keys.Enter);
             Thread.Sleep(40);
             Input.KeyUp(Keys.Enter);
             Thread.Sleep(100);
 
-            // 2. Chon tat ca va xoa
+            // 2. Chọn tất cả và Dán (Ctrl+A -> Ctrl+V) - Chống hoàn toàn Unikey / gõ sai ký tự
             Input.KeyDown(Keys.LControlKey);
+            Thread.Sleep(20);
             Input.KeyDown(Keys.A);
-            Thread.Sleep(25);
+            Thread.Sleep(20);
             Input.KeyUp(Keys.A);
+            Thread.Sleep(20);
+            Input.KeyDown(Keys.V);
+            Thread.Sleep(20);
+            Input.KeyUp(Keys.V);
+            Thread.Sleep(20);
             Input.KeyUp(Keys.LControlKey);
-            Thread.Sleep(25);
-            Input.KeyDown(Keys.Back);
-            Thread.Sleep(25);
-            Input.KeyUp(Keys.Back);
             Thread.Sleep(40);
 
-            // 3. Go chuoi /hideout
-            var keys = new[] { Keys.OemQuestion, Keys.H, Keys.I, Keys.D, Keys.E, Keys.O, Keys.U, Keys.T };
-            foreach (var k in keys)
-            {
-                Input.KeyDown(k);
-                Thread.Sleep(20);
-                Input.KeyUp(k);
-                Thread.Sleep(20);
-            }
-
-            Thread.Sleep(50);
-            // 4. Gui lenh chat bang Enter
+            // 3. Gửi lệnh chat bằng Enter
             Input.KeyDown(Keys.Enter);
             Thread.Sleep(40);
             Input.KeyUp(Keys.Enter);

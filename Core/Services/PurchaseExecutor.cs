@@ -65,8 +65,8 @@ public class PurchaseExecutor
             var versionStr = _settings.GameVersion?.Value ?? "AutoDetect";
             var adapter = _adapterFactory.GetAdapter(_gc, versionStr);
 
-            // Chờ siêu ngắn (25ms) để UI ổn định
-            yield return new WaitTime(25);
+            // Chờ siêu ngắn (10ms) để UI ổn định
+            yield return new WaitTime(10);
 
             if (!adapter.IsShopOpen(_gc) || (_gc.IngameState?.Data?.CurrentAreaHash != startAreaHash))
             {
@@ -74,12 +74,12 @@ public class PurchaseExecutor
             }
 
             var activeRules = _settings.GetActiveRules();
-            var consecutiveUnbuyableCount = 0;
+            var skippedAddresses = new HashSet<long>();
 
-            // Chờ 50ms ban đầu để server PoE nạp danh sách ô đồ vào RAM
-            yield return new WaitTime(50);
+            // Chờ 20ms ban đầu để server PoE nạp danh sách ô đồ vào RAM
+            yield return new WaitTime(20);
 
-            // DYNAMIC LIVE-QUEUE SCAN: Quét trực tiếp trên Tab hiện tại cho tới khi mua sạch item thỏa mãn
+            // DYNAMIC LIVE-QUEUE SCAN: Quét trực tiếp trên Tab hiện tại cho tới khi mua sạch 100% item thỏa mãn
             while (true)
             {
                 if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
@@ -89,19 +89,22 @@ public class PurchaseExecutor
                 if (liveItems == null || liveItems.Count == 0) break;
 
                 var matchingItems = liveItems
-                    .Where(i => i != null && (_settings.IsTimelessMode() ? (i.IsTimelessJewel && i.Width == 1 && i.Height == 1 && i.Sockets == 0 && !IsOccludedByLargerItem(i, liveItems) && ItemFilterEngine.MatchesTimelessCandidate(i, _settings)) : ItemFilterEngine.MatchesAnyRule(i, activeRules)))
+                    .Where(i => i != null && !skippedAddresses.Contains(i.InventoryItem?.Address ?? 0) &&
+                                (_settings.IsTimelessMode() ? (i.IsTimelessJewel && i.Width == 1 && i.Height == 1 && i.Sockets == 0 && !IsOccludedByLargerItem(i, liveItems) && ItemFilterEngine.MatchesTimelessCandidate(i, _settings)) : ItemFilterEngine.MatchesAnyRule(i, activeRules)))
                     .OrderBy(i => i.ScreenRect.Top)
                     .ThenBy(i => i.ScreenRect.Left)
                     .ToList();
 
-                // Nếu tab hiện tại không có item thỏa mãn -> Kết thúc ngay để tele sang người bán khác
-                if (matchingItems.Count == 0 || consecutiveUnbuyableCount >= matchingItems.Count)
+                // Nếu tab hiện tại không còn item nào thỏa mãn -> Kết thúc để sang hideout mới
+                if (matchingItems.Count == 0)
                 {
                     break;
                 }
 
-                // Luôn lấy món đồ đầu tiên trong danh sách còn lại
+                // Lấy món đồ đầu tiên chưa bị bỏ qua
                 var item = matchingItems[0];
+                var itemAddress = item.InventoryItem?.Address ?? 0;
+
                 if (!InventorySpaceChecker.HasSpaceForItem(_gc, item.Width, item.Height)) break;
 
                 var clickTarget = new Vector2(item.ScreenRect.Center.X, item.ScreenRect.Center.Y + 4);
@@ -111,11 +114,11 @@ public class PurchaseExecutor
                 {
                     if (!_settings.Enable.Value || RequestStop || !adapter.IsShopOpen(_gc)) yield break;
 
-                    // 1. DI CHUỘT VÀO ITEM ĐỂ HIỆN TOOLTIP Ở MỌI LẦN THỬ
+                    // 1. DI CHUỘT VÀO ITEM ĐỂ HIỆN TOOLTIP SIÊU TỐC (12ms)
                     MouseHelper.FastDirectMove(clickTarget);
-                    yield return new WaitTime(25);
+                    yield return new WaitTime(12);
 
-                    // 2. CẬP NHẬT & TÁI KIỂM TRA GIÁ TRƯỚC KHI CLICK
+                    // 2. CẬP NHẬT & TÁI KIỂM TRA GIÁ TRƯỚC KHI CLICK (Đảm bảo 100% chính xác)
                     UpdateItemFromLiveHover(_gc, item);
 
                     var canBuy = _settings.IsTimelessMode()
@@ -125,32 +128,32 @@ public class PurchaseExecutor
                     if (!canBuy)
                     {
                         LogHelper.Warn($"[GIÁ NGOÀI PHẠM VI] Bỏ qua {item.DisplayName} vì giá không thỏa mãn ({item.CostString}).");
-                        consecutiveUnbuyableCount++;
+                        skippedAddresses.Add(itemAddress);
                         break;
                     }
 
                     if (_settings.IsTimelessMode() && IsHoveringNonJewelEquipment(_gc))
                     {
-                        consecutiveUnbuyableCount++;
+                        skippedAddresses.Add(itemAddress);
                         break;
                     }
 
                     // Ghi nhận số lượng item trong túi đồ trước khi click
                     var invCountBefore = GetPlayerInventoryItemCount(_gc);
 
-                    // 3. Ctrl+Click mua với phím Ctrl nhận chắc chắn 100% (8ms Ctrl buffer, 20ms hold)
-                    MouseHelper.FastCtrlLeftClickAt(clickTarget, 0, 20);
+                    // 3. Ctrl+Click mua với phím Ctrl nhận chắc chắn 100% (8ms Ctrl buffer, 15ms hold)
+                    MouseHelper.FastCtrlLeftClickAt(clickTarget, 0, 15);
 
-                    // 4. KIỂM TRA TRẠNG THÁI BỘ NHỚ: Chỉ xác nhận khi item THỰC SỰ đã vào túi đồ (+1 item)
+                    // 4. KIỂM TRA TRẠNG THÁI BỘ NHỚ SIÊU NHANH (8ms/tick, phản hồi ngay khi túi đồ +1)
                     var confirmedByMemory = false;
-                    for (var tick = 0; tick < 10; tick++)
+                    for (var tick = 0; tick < 12; tick++)
                     {
-                        yield return new WaitTime(15);
+                        yield return new WaitTime(8);
 
                         if (IsPriceDifferenceModalOpen(_gc))
                         {
                             HandlePriceDifferenceModal(_gc, _settings);
-                            yield return new WaitTime(30);
+                            yield return new WaitTime(25);
                         }
 
                         // Kiểm tra thực tế số lượng item trong túi đồ nhân vật (Ground Truth)
@@ -165,7 +168,6 @@ public class PurchaseExecutor
 
                     if (confirmedByMemory)
                     {
-                        consecutiveUnbuyableCount = 0;
                         break; // Mua thành công món này!
                     }
 
@@ -174,6 +176,10 @@ public class PurchaseExecutor
                     {
                         LogHelper.Warn($"[THỬ LẠI #{attempt}] Item chưa vào túi (Game báo chưa nhận tiền). Đang đợi 500ms đồng bộ tiền và mua lại...");
                         yield return new WaitTime(500); // CHỜ ĐÚNG 500MS VÀ THỬ LẠI
+                    }
+                    else
+                    {
+                        skippedAddresses.Add(itemAddress);
                     }
                 }
 
@@ -189,11 +195,17 @@ public class PurchaseExecutor
                     var goldText = item.Cost?.GoldAmount > 0 ? $" ({item.Cost.GoldAmount} Gold)" : "";
                     var fullBuyLog = $"{item.DisplayName} | Giá: {priceText}{goldText}";
 
-                    LogHelper.Info($"[ĐÃ MUA THÀNH CÔNG] {fullBuyLog}");
+                    LogHelper.Info($"[ĐÃ MUA THÀNH CÔNG #{totalPurchasedCount}] {fullBuyLog}");
                     purchasedDetails.Add(fullBuyLog);
                     RecentPurchases.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {fullBuyLog}");
                     if (RecentPurchases.Count > 10) RecentPurchases.RemoveAt(RecentPurchases.Count - 1);
                     AppendToHistoryLog($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ĐÃ MUA] {fullBuyLog}");
+
+                    // CẬP NHẬT TRẠNG THÁI BUYING CHO PYTHON BIẾT VẪN ĐANG MUA TIẾP
+                    NotifyBridge("BUYING", totalPurchasedCount, purchasedDetails);
+
+                    // Chờ siêu ngắn (20ms) trước khi mua tiếp món thứ 2, 3... trong cùng Shop
+                    yield return new WaitTime(20);
                 }
             }
         }
@@ -246,10 +258,25 @@ public class PurchaseExecutor
         try
         {
             var bridgeFile = BridgePathHelper.GetBridgeFilePath();
+            var tradeId = "";
+            if (File.Exists(bridgeFile))
+            {
+                try
+                {
+                    var text = File.ReadAllText(bridgeFile);
+                    if (text.Contains("\"trade_id\""))
+                    {
+                        var match = System.Text.RegularExpressions.Regex.Match(text, "\"trade_id\"\\s*:\\s*\"([^\"]+)\"");
+                        if (match.Success) tradeId = match.Groups[1].Value;
+                    }
+                }
+                catch { }
+            }
+
             var detailsEscaped = details != null && details.Count > 0
                 ? string.Join(",", details.Select(d => $"\"{d.Replace("\"", "\\\"")}\""))
                 : string.Empty;
-            var json = $"{{\"status\":\"{status}\",\"items_bought\":{itemsBought},\"last_items\":[{detailsEscaped}],\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
+            var json = $"{{\"status\":\"{status}\",\"trade_id\":\"{tradeId}\",\"items_bought\":{itemsBought},\"last_items\":[{detailsEscaped}],\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}}}";
             File.WriteAllText(bridgeFile, json);
         }
         catch { }
