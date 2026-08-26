@@ -171,6 +171,14 @@ public class ShopAutoBuyer : BaseSettingsPlugin<ShopAutoBuyerSettings>
                 }
             }
 
+            // 1. KIỂM TRA MÀN HÌNH LOADING (BÁNH RĂNG QUAY / CHUYỂN KHU VỰC)
+            // TUYỆT ĐỐI KHÓA TOÀN BỘ HÀNH ĐỘNG VÀ BÁO PYTHON CHỜ ĐỂ TRÁNH BỊ KICK KHỎI GAME
+            if (GameController.IsLoading || GameController.IngameState?.Data == null || GameController.Area?.CurrentArea == null)
+            {
+                NotifyWebTradeStatus("LOADING");
+                return null!;
+            }
+
             var versionStr = Settings?.GameVersion?.Value ?? "AutoDetect";
             var adapter = _adapterFactory.GetAdapter(GameController, versionStr);
             if (adapter == null) return null!;
